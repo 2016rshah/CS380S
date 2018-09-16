@@ -48,13 +48,19 @@ We have two motivating examples. First, we would like our tool to be able to det
 
 \section{Rough Plan}
 
-% TODO
+\begin{enumerate}
+	\item Determine data dependency tool (for C/C++) to use, conduct background research (\textit{2 weeks})
+	\item Adapt tool to identify the OpenSSL bug (\textit{6 weeks})
+	\item Test on other cases like bitcoin wallets (\textit{2 weeks})
+	\item Prepare presentation/writeup (\textit{1 week})
+	\item Integrate tool into compiler toolchain like clang (\textit{optional})
+\end{enumerate}
 
 \section{Research Hypothesis}
 
 \begin{enumerate}
-	\item An automated tool can detect entropy bugs in real-world programs 
-	\item Entropy is insufficiently propagated in programs that rely on cryptography
+	\item An automated tool can detect entropy bugs in real-world programs.
+	\item Entropy is insufficiently propagated in programs that rely on cryptography.
 \end{enumerate}
 
 \section{Related Work}
