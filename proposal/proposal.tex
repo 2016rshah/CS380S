@@ -42,21 +42,38 @@
 
 \section{Project Idea}
 
-We plan to use Data Dependency tools to determine how system entropy in a given program is used by various cryptographic algorithms. That will allow us to identify if and when entropy is too low or is misused. We can release this as a tool for developers to use as part of a compiler toolchain. We can also use the tool on current projects that might be misusing crypto/entropy. 
+\subsection{Motivation}
+One common misuse of cryptography is the misuse of entropy. Without proper random inputs, many cryptographic algorithms
+are vulnerable to basic forms of cryptanalysis. Some cryptographic schemes, such as DSA, can even disclose long-term secrets
+like the signing key when the random per-message input is low entropy, made public, or nonunique.
 
-We have two motivating examples. First, we would like our tool to be able to detect the issue with the Debian/OpenSSL pseudo-random number generator that was exposed in 2008. Second, we would like to identify potential vulnerabilities in current cryptocurrency wallet code. 
+We have two motivating examples. First, we would like our tool to be able to detect the issue with the Debian/OpenSSL pseudo-random number generator that was exposed in 2008. 
+Second, we would like to identify potential vulnerabilities in current cryptocurrency wallet code as many cryptocurrency protocols rely on DSA.
+
+\subsection{Goals}
+We plan to use data dependency tools to determine how entropic inputs in a given program are used by various cryptographic algorithms. 
+That will allow us to identify if and when entropy is too low or is misused. We plan to either produce
+this as a code integration tool for developers to use as part of a compiler toolchain, or use this tool to analyze a large number of codebases
+found ``in the wild,'' such as those written by amateurs.
+
+Our tool will seek to generate a human-checkable dependency graph from source code
+using taint analysis on functions and function inputs manually specified via annotation by the developer.
+This graph will allow the developer to manually verify that entropy is used properly; a stretch goal 
+of ours would be to automate the identification of a subset of known misuses of entropy.
 
 \section{Rough Plan}
 
 \begin{enumerate}
 	\item Determine data dependency tool (for C/C++) to use, conduct background research (\textit{2 weeks})
-	\item Adapt tool to identify the OpenSSL bug (\textit{6 weeks})
-	\item Test on other cases like bitcoin wallets (\textit{2 weeks})
+	\item Adapt tool to identify the OpenSSL bug (\textit{5 weeks})
+	\item Test on other cases like Bitcoin wallets (\textit{3 weeks})
 	\item Prepare presentation/writeup (\textit{1 week})
 	\item Integrate tool into compiler toolchain like clang (\textit{optional})
 \end{enumerate}
 
-\section{Research Hypothesis}
+\section{Research Hypotheses}
+
+We principally have two hypotheses we would like to test.
 
 \begin{enumerate}
 	\item An automated tool can detect entropy bugs in real-world programs.
@@ -65,8 +82,12 @@ We have two motivating examples. First, we would like our tool to be able to det
 
 \section{Related Work}
 
+Static code analysis has a history of identifying security vulnerabilities at a source code level.
+Some examples include SQL injection, cross-site scripting exploits, and buffer overflow attacks. However,
+there has not been any attempt in the literature to statically analyze source code for cryptographic
+vulnerabilities stemming from entropy misuse, which we seek to do.
+
 % TODO maybe we need to say what exactly we found in the links instead of just dropping links?
-\subsection{Background information}
 
 \begin{enumerate}
 	\item Debian/OpenSSL Bug 
@@ -83,13 +104,13 @@ We have two motivating examples. First, we would like our tool to be able to det
 		\end{enumerate}
 	\item Static Program Analysis
 		\begin{enumerate}
-			\item \url{https://cs.au.dk/~amoeller/spa/spa.pdf}
+            \item \url{https://cs.au.dk/~amoeller/spa/spa.pdf}
+            \item \url{https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=6859783}
 		\end{enumerate}
 
 	% TODO maybe have a section about cryptocurrency wallets, etc.
 \end{enumerate}
 
-\subsection{Related research}
 
 % TODO
 
