@@ -1,0 +1,177 @@
+% TEMPLATE for Usenix papers, specifically to meet requirements of
+%  USENIX '05
+% originally a template for producing IEEE-format articles using LaTeX.
+%   written by Matthew Ward, CS Department, Worcester Polytechnic Institute.
+% adapted by David Beazley for his excellent SWIG paper in Proceedings,
+%   Tcl 96
+% turned into a smartass generic template by De Clarke, with thanks to
+%   both the above pioneers
+% use at your own risk.  Complaints to /dev/null.
+% make it two column with no page numbering, default is 10 point
+
+% Munged by Fred Douglis <douglis@research.att.com> 10/97 to separate
+% the .sty file from the LaTeX source template, so that people can
+% more easily include the .sty file into an existing document.  Also
+% changed to more closely follow the style guidelines as represented
+% by the Word sample file. 
+
+% Note that since 2010, USENIX does  not require endnotes. If you want
+% foot of page notes, don't include the endnotes package in the 
+% usepackage command, below.
+
+% This version uses the latex2e styles, not the very ancient 2.09 stuff.
+\documentclass[letterpaper,twocolumn,10pt]{article}
+\usepackage{usenix,epsfig,endnotes}
+
+\usepackage{algpseudocode}
+
+\PassOptionsToPackage{hyphens}{url}\usepackage{hyperref}
+\begin{document}
+
+%don't want date printed
+\date{\today}
+
+%make title bold and 14 pt font (Latex default is non-bold, 16 pt)
+\title{\Large \bf CS380S: Project Update}
+
+%for single author (just remove % characters)
+\author{
+{\rm Rushi Shah}
+\and
+{\rm Andrew Russell}
+}
+
+\maketitle
+
+One common misuse of cryptography is the misuse of entropy. Without proper random inputs, many cryptographic algorithms
+are vulnerable to basic forms of cryptanalysis. Some cryptographic schemes, such as DSA, can even disclose long-term secrets
+like the signing key when the random per-message input is low entropy, made public, or nonunique.
+
+Given two versions $P_1, P_2$ of the same program P, we propose a relational verification for the entropy of the cryptographic values in the program. By introducing the concept of ``differential taint analysis'', we hope to produce a product program $P_1 \times P_2$ that is semantically equivalent to the sequential composition $P_1; P_2$, but such that we can prove useful safety properties of $P_1 \times P_2$ that would be difficult to prove with standard techniques on $P_1$, $P_2$, or $P_1; P_2$. 
+
+
+\section{Motivating Example}
+
+Consider the following two programs $P_1$ and $P_2$ that are equivalent from a cryptographic point of view, but might have small feature changes. 
+
+\begin{algorithmic}
+\Function{$P_1$}{}
+\State $S \gets$ entropy
+\State $\vdots$
+\If {f()}
+\State $c \gets$ AES(s)
+\EndIf
+\State $\vdots$
+\EndFunction
+\\
+\Function{$P_2$}{}
+\State $S \gets$ entropy
+\State $\vdots$
+\If {f()}
+\State $c \gets$ AES(s)
+\EndIf
+\State $\vdots$
+\EndFunction
+\end{algorithmic}
+
+where $f$ is some complex function that is difficult to reason about, but does not change between $P_1$ and $P_2$. Then, safety properties about the entropy of the cryptographic values in $c$ would hold in both programs or in neither program. 
+
+\section{Existing Techniques}
+
+Static code analysis has a history of identifying security vulnerabilities at a source code level. Some examples include SQL injection, cross-site scripting exploits, and buffer overflow attacks. However, there has not been any attempt in the literature to statically analyze source code for cryptographic vulnerabilities stemming from entropy misuse, which we seek to do. Standard static code analysis techniques developed thus far are also insufficient for the analysis we would like to perform. 
+
+Under-approx tools don't exist (why do we need under approx tools?), and also difficult to reason about arbitrary functions (but they are usually irrelevant to the analysis you're performing), also can't just run taint analysis on one program because don't know what the taint results should look like (the old program gives us a correctness criteria/oracle to infer what the correct taint results would be).
+
+\section{Our Approach}
+Introduce concept of differential taint analysis here. Talk about constructing a product program.
+
+\begin{algorithmic}
+\Function{$P_1 \times P_2$}{}
+\State $S_1 \gets$ entropy
+\State $S_2 \gets$ entropy
+\State $\vdots$
+\If {f()}
+\State c$_1 \gets$ AES($s_1$)
+\State $c_2 \gets$ AES($s_2$)
+\EndIf
+\State $\vdots$
+\EndFunction
+\end{algorithmic}
+
+Note that, during the construction of the product program, we need to be able to merge the if statements in the two programs. Also note that we need to demonstrate set equality between the taint for $s_1, s_2$ when they are used in the if statement. 
+
+\section{What We Hope To Show}
+Talk about how we assign the output of a sufficiently entropic value to a variable in $P_1$ iff we also assign it in $P_2$. Then show that there is an equivalence in the taint propagation (prove set equality of the places where cryptographic values are used). 
+
+\section{Real World Applications}
+How our analysis framework would be able to identify real world bugs. What are the benchmarks we compare against (OpenSSL, FreeBSD, etc.).
+
+\section{Research Hypotheses}
+
+These are the principal hypotheses we would like to test:
+
+\begin{enumerate}
+	\item An automated tool can detect entropy bugs in real-world programs.
+	\item Entropy is insufficiently propagated in programs that rely on cryptography.
+	\item Multiple versions of the same program can make static analysis for this domain more effective
+\end{enumerate}
+
+\section{Links}
+
+\begin{enumerate}
+	\item Debian/OpenSSL Bug 
+		\begin{enumerate}
+			\item \url{https://www.schneier.com/blog/archives/2008/05/random_number_b.html}
+			\item \url{https://research.swtch.com/openssl}
+			\item \url{https://freedom-to-tinker.com/2013/09/20/software-transparency-debian-openssl-bug/}
+			\item \url{https://www.cs.umd.edu/class/fall2017/cmsc818O/papers/private-keys-public.pdf}
+		\end{enumerate}
+	\item Data flow
+		\begin{enumerate}
+			\item \url{https://en.wikipedia.org/wiki/Data-flow_analysis}
+			\item \url{https://www.seas.harvard.edu/courses/cs252/2011sp/slides/Lec02-Dataflow.pdf}
+		\end{enumerate}
+	\item Static Program Analysis
+		\begin{enumerate}
+            \item \url{https://cs.au.dk/~amoeller/spa/spa.pdf}
+            \item \url{https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=6859783}
+		\end{enumerate}
+	\item Relational Verification:
+		\begin{enumerate}
+			\item \url{https://dl.acm.org/citation.cfm?id=2021319}
+			\item \url{https://ac.els-cdn.com/S235222081630044X/1-s2.0-S235222081630044X-main.pdf?_tid=076a0492-9cee-4995-9710-bcb3c64b98e0&acdnat=1539815890_178849b4f14af3751e9acb03b238db4d}
+			\item \url{https://www.microsoft.com/en-us/research/publication/differential-assertion-checking/}
+			\item \url{https://www.microsoft.com/en-us/research/wp-content/uploads/2014/06/paper-1.pdf}
+			\item \url{https://www.cs.utexas.edu/~isil/pldi16-chl.pdf}
+		\end{enumerate}
+	\item Projects to analyze 
+		\begin{enumerate}
+			\item OpenPGP
+			\item BouncyCastle
+			\item OpenSSL
+			\item GnuPGP
+			\item F\# SSL project with proof of correctness
+			\item NQSBTLS
+			\item Amazon's s2n (signal to noise)
+		\end{enumerate}
+\end{enumerate}
+
+% We have two motivating examples. First, we would like our tool to be able to detect the issue with the Debian/OpenSSL pseudo-random number generator that was exposed in 2008. 
+% Second, we would like to identify potential vulnerabilities in current cryptocurrency wallet code as many cryptocurrency protocols rely on DSA.
+
+% \subsection{Goals}
+% We plan to use data dependency tools to determine how entropic inputs in a given program are used by various cryptographic algorithms. 
+% That will allow us to identify if and when entropy is too low or is misused. We plan to either produce
+% this as a code integration tool for developers to use as part of a compiler toolchain, or use this tool to analyze a large number of codebases
+% found ``in the wild,'' such as those written by amateurs.
+
+% Our tool will seek to generate a human-checkable dependency graph from source code
+% using taint analysis on functions and function inputs manually specified via annotation by the developer.
+% This graph will allow the developer to manually verify that entropy is used properly; a stretch goal 
+% of ours would be to automate the identification of a subset of known misuses of entropy.
+
+
+
+% TODO
+
+\end{document}
