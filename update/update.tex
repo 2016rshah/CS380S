@@ -47,10 +47,10 @@ One common misuse of cryptography is the misuse of entropy. Without proper rando
 are vulnerable to basic forms of cryptanalysis. Some cryptographic schemes, such as DSA, can even disclose long-term secrets
 like the signing key when the random per-message input is low entropy, made public, or nonunique.
 
-Given two versions $P_1, P_2$ of the same program P, we propose a relational verification for the entropy of the cryptographic values in the program. By introducing the concept of ``differential taint analysis'', we hope to produce a product program $P_1 \times P_2$ that is semantically equivalent to the sequential composition $P_1; P_2$, but such that we can prove useful safety properties of $P_1 \times P_2$ that would be difficult to prove with standard techniques on $P_1$, $P_2$, or $P_1; P_2$. 
+Given two versions $P_1, P_2$ of the same program P, we propose a relational verification for the entropy of the cryptographic values in the program. By introducing the concept of ``differential taint analysis'', we hope to produce a product program $P_1 \times P_2$ that is semantically equivalent to the sequential composition $P_1; P_2$, but such that we can prove useful safety properties of $P_1 \times P_2$ that would be difficult to prove with standard techniques on $P_1$, $P_2$, or $P_1; P_2$. The safety property we are the most interested in proving is that cryptographic values rely on sufficiently many bits of entropy when they are used. 
 
 
-\section{Motivating Example}
+\section{Example Formalization}
 
 Consider the following two programs $P_1$ and $P_2$ that are equivalent from a cryptographic point of view, but might have small feature changes. 
 
@@ -74,16 +74,20 @@ Consider the following two programs $P_1$ and $P_2$ that are equivalent from a c
 \EndFunction
 \end{algorithmic}
 
-where $f$ is some complex function that is difficult to reason about, but does not change between $P_1$ and $P_2$. Then, safety properties about the entropy of the cryptographic values in $c$ would hold in both programs or in neither program. 
+where $f$ is some complex function that is difficult to reason about, but does not change between $P_1$ and $P_2$. Then, clearly, our safety properties about the entropy of the cryptographic values in $c$ would hold in both programs or in neither program. 
 
-\section{Existing Techniques}
+\section{Existing Techniques, DTA Motivation}
 
 Static code analysis has a history of identifying security vulnerabilities at a source code level. Some examples include SQL injection, cross-site scripting exploits, and buffer overflow attacks. However, there has not been any attempt in the literature to statically analyze source code for cryptographic vulnerabilities stemming from entropy misuse, which we seek to do. Standard static code analysis techniques developed thus far are also insufficient for the analysis we would like to perform. 
 
-Under-approx tools don't exist (why do we need under approx tools?), and also difficult to reason about arbitrary functions (but they are usually irrelevant to the analysis you're performing), also can't just run taint analysis on one program because don't know what the taint results should look like (the old program gives us a correctness criteria/oracle to infer what the correct taint results would be).
+Standard taint analysis will under/overapproximate the taint, so we may not be able to use it to directly prove our safety property on the target program. Thus, we can leverage the approach of relational verification. 
+
+Relational verification aims to solve this problem by proving relational properties between two programs. However, the naive relational verification approach of verifying each program individually is infeasible given arbitrarily difficult-to-reason-about functions even if those functions do not change between versions of the program. One approach is to underapproximate the taint on one program and overapproximate the taint on another program to verify the set equality of taint sources, but this still falls prey to the approximation of taint analysis given arbitrarily complex functions. Also, current tooling does not widely support underapproximating taint analysis.
+
+Finally, even with a sufficiently precise taint analysis, it is unclear how to determine the ``correct'' set of sources a cryptographic value should rely on at any point in the program. For example, some programs will use weak entropy on system startup, and increase the entropy in those values, later on. Thus, by running our analysis on two versions of the program, we can use one version as an oracle for the correctness criteria of the other program. In other words, we can use it to infer what the set of taint results should be for any variable at any point in the program.  
 
 \section{Our Approach}
-Introduce concept of differential taint analysis here. Talk about constructing a product program.
+Given the two programs in the example, we propose generating a product program similar to the following:
 
 \begin{algorithmic}
 \Function{$P_1 \times P_2$}{}
@@ -98,13 +102,17 @@ Introduce concept of differential taint analysis here. Talk about constructing a
 \EndFunction
 \end{algorithmic}
 
-Note that, during the construction of the product program, we need to be able to merge the if statements in the two programs. Also note that we need to demonstrate set equality between the taint for $s_1, s_2$ when they are used in the if statement. 
+Note that, during the construction of the product program, we need to be able to merge the if statements in the two programs. 
 
-\section{What We Hope To Show}
-Talk about how we assign the output of a sufficiently entropic value to a variable in $P_1$ iff we also assign it in $P_2$. Then show that there is an equivalence in the taint propagation (prove set equality of the places where cryptographic values are used). 
+We would like to demonstrate set equality between the taint for $s_1, s_2$ when they are used in the if statement, which amounts to demonstrating the equivalence of the taint propagation through the program. We would also like to demonstrate that we assign the output of a sufficiently entropic value to a variable in $P_1$ if and only if we also assign it that sufficiently entropic value in $P_2$.
+
+Proving these two properties (set-equality and equivalence of assignments) allows us to claim that $P_1$ has the safety property if and only if $P_2$ has the safety property.
 
 \section{Real World Applications}
-How our analysis framework would be able to identify real world bugs. What are the benchmarks we compare against (OpenSSL, FreeBSD, etc.).
+
+A verification tool like this could be especially useful for a maintainer of a project that relies on cryptographic values. For example, if she audits her code once to confirm that it uses entropy properly, she can use differential taint analysis on future commits to confirm that the new code does not introduce this class of bugs. 
+
+How our analysis framework would be able to identify real world bugs. What are the benchmarks we compare against (OpenSSL, FreeBSD, etc.). What are the projects we will evaluate the tool on. %TODO
 
 \section{Research Hypotheses}
 
