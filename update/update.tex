@@ -50,41 +50,50 @@ like the signing key when the random per-message input is low entropy, made publ
 Given two versions $P_1, P_2$ of the same program P, we propose a relational verification for the entropy of the cryptographic values in the program. By introducing the concept of ``differential taint analysis'', we hope to produce a product program $P_1 \times P_2$ that is semantically equivalent to the sequential composition $P_1; P_2$, but such that we can prove useful safety properties of $P_1 \times P_2$ that would be difficult to prove with standard techniques on $P_1$, $P_2$, or $P_1; P_2$. The safety property we are the most interested in proving is that cryptographic values rely on sufficiently many bits of entropy when they are used. 
 
 
-\section{Example Formalization}
+\section{Example}
 
 Consider the following two programs $P_1$ and $P_2$ that are equivalent from a cryptographic point of view, but might have small feature changes. 
 
 \begin{algorithmic}
 \Function{$P_1$}{}
-\State $S \gets$ entropy
+\State $s \gets$ entropy
 \State $\vdots$
-\If {f()}
+\If {$p$}
 \State $c \gets$ AES(s)
 \EndIf
 \State $\vdots$
 \EndFunction
 \\
 \Function{$P_2$}{}
-\State $S \gets$ entropy
+\State $s \gets$ entropy
 \State $\vdots$
-\If {f()}
+\If {$p$}
 \State $c \gets$ AES(s)
 \EndIf
 \State $\vdots$
 \EndFunction
 \end{algorithmic}
 
-where $f$ is some complex function that is difficult to reason about, but does not change between $P_1$ and $P_2$. Then, clearly, our safety properties about the entropy of the cryptographic values in $c$ would hold in both programs or in neither program. 
+where $p$ is some complex predicate that is difficult to reason about, but does not change between $P_1$ and $P_2$ (and no values that $p$ depends on change, either). Then, a safety property about the entropy of the cryptographic values in $c$ would hold in both programs or in neither program. 
 
 \section{Existing Techniques, DTA Motivation}
 
-Static code analysis has a history of identifying security vulnerabilities at a source code level. Some examples include SQL injection, cross-site scripting exploits, and buffer overflow attacks. However, there has not been any attempt in the literature to statically analyze source code for cryptographic vulnerabilities stemming from entropy misuse, which we seek to do. Standard static code analysis techniques developed thus far are also insufficient for the analysis we would like to perform. 
+Static code analysis has a history of identifying security vulnerabilities at a source code level. Some examples include SQL injection, cross-site scripting exploits, and buffer overflow attacks. However, there has not been any attempt in the literature to statically analyze source code for cryptographic vulnerabilities stemming from entropy misuse, which we seek to do. We claim that standard static code analysis techniques developed thus far are insufficient for the analysis we would like to perform. 
 
-Standard taint analysis will under/overapproximate the taint, so we may not be able to use it to directly prove our safety property on the target program. Thus, we can leverage the approach of relational verification. 
+The sources of entropy can be tainted standard taint analysis techniques can be used to approximate how the taint propagates. But this approximation may be too coarse to provide useful information to the user. Even with a sufficiently precise taint analysis, it is unclear how to determine the ``correct'' set of sources a cryptographic value should rely on at any point in the program.
 
-Relational verification aims to solve this problem by proving relational properties between two programs. However, the naive relational verification approach of verifying each program individually is infeasible given arbitrarily difficult-to-reason-about functions even if those functions do not change between versions of the program. One approach is to underapproximate the taint on one program and overapproximate the taint on another program to verify the set equality of taint sources, but this still falls prey to the approximation of taint analysis given arbitrarily complex functions. Also, current tooling does not widely support underapproximating taint analysis.
+Verification modulo versions can be leveraged, the static analyzer is treated as opaque in an effort to cut down the number of alarms by inferring assumptions made by the original program (assumed to be correct). This is especially appealing in the security software development cycle because there are documented cases of entropy bugs being introduced in new versions of programs (for example, OpenSSL and FreeBSD). This would involve under-approximating the taint of one version of the program and over-approximating the taint of another version of the program. Current tooling does not widely support under-approximating taint analysis. 
 
-Finally, even with a sufficiently precise taint analysis, it is unclear how to determine the ``correct'' set of sources a cryptographic value should rely on at any point in the program. For example, some programs will use weak entropy on system startup, and increase the entropy in those values, later on. Thus, by running our analysis on two versions of the program, we can use one version as an oracle for the correctness criteria of the other program. In other words, we can use it to infer what the set of taint results should be for any variable at any point in the program.  
+Another existing technique is relational verification, in which relational properties between two programs are used to prove $k$-safety properties. In our case, we would want to show the equivalence of entropy assignment and the equivalence of the entropy propagation. Relational verification would proceed with the construction of a product program between versions of the program that captures the semantics of executing them sequentially, but that lends itself to standard verification techniques. 
+
+% How is vmv related to relational verification? 
+
+
+% Standard taint analysis will under/overapproximate the taint, so we may not be able to use it to directly prove our safety property on the target program. Thus, we can leverage the approach verification modulo versions to prove relational verification. 
+
+% Relational verification aims to solve this problem by proving relational properties between two programs. However, the naive relational verification approach of verifying each program individually is infeasible given arbitrarily difficult-to-reason-about functions even if those functions do not change between versions of the program. One approach is to underapproximate the taint on one program and overapproximate the taint on another program to verify the set equality of taint sources, but this still falls prey to the approximation of taint analysis given arbitrarily complex functions. Also, current tooling does not widely support underapproximating taint analysis.
+
+% Finally, even with a sufficiently precise taint analysis, it is unclear how to determine the ``correct'' set of sources a cryptographic value should rely on at any point in the program. For example, some programs will use weak entropy on system startup, and increase the entropy in those values, later on. Thus, by running our analysis on two versions of the program, we can use one version as an oracle for the correctness criteria of the other program. In other words, we can use it to infer what the set of taint results should be for any variable at any point in the program.  
 
 \section{Our Approach}
 Given the two programs in the example, we propose generating a product program similar to the following:
@@ -110,7 +119,7 @@ Proving these two properties (set-equality and equivalence of assignments) allow
 
 \section{Real World Applications}
 
-A verification tool like this could be especially useful for a maintainer of a project that relies on cryptographic values. For example, if she audits her code once to confirm that it uses entropy properly, she can use differential taint analysis on future commits to confirm that the new code does not introduce this class of bugs. 
+A verification tool like this could be especially useful for a maintainer of a project that relies on cryptographic values. For example, if she audits her code once to confirm that it uses entropy properly, she can use differential taint analysis on future commits to confirm that the new code does not introduce this class of bugs. % VMV?
 
 How our analysis framework would be able to identify real world bugs. What are the benchmarks we compare against (OpenSSL, FreeBSD, etc.). What are the projects we will evaluate the tool on. %TODO
 
@@ -177,9 +186,5 @@ These are the principal hypotheses we would like to test:
 % using taint analysis on functions and function inputs manually specified via annotation by the developer.
 % This graph will allow the developer to manually verify that entropy is used properly; a stretch goal 
 % of ours would be to automate the identification of a subset of known misuses of entropy.
-
-
-
-% TODO
 
 \end{document}
