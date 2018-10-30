@@ -43,11 +43,31 @@
 
 \maketitle
 
+\section{Introduction}
+
 One common misuse of cryptography is the misuse of entropy. Without proper random inputs, many cryptographic algorithms
 are vulnerable to basic forms of cryptanalysis. Some cryptographic schemes, such as DSA, can even disclose long-term secrets
 like the signing key when the random per-message input is low entropy, made public, or nonunique.
 
-Given two versions $P_1, P_2$ of the same program P, we propose a relational verification for the entropy of the cryptographic values in the program. By introducing the concept of ``differential taint analysis'', we hope to produce a product program $P_1 \times P_2$ that is semantically equivalent to the sequential composition $P_1; P_2$, but such that we can prove useful safety properties of $P_1 \times P_2$ that would be difficult to prove with standard techniques on $P_1$, $P_2$, or $P_1; P_2$. The safety property we are the most interested in proving is that cryptographic values rely on sufficiently many bits of entropy when they are used. 
+We plan to use data dependency tools to determine how entropic inputs in a given program are used by various cryptographic algorithms. That will allow us to identify if and when entropy is too low or is misused. We plan to either produce this as a code integration tool for developers to use as part of a compiler toolchain, or use this tool to analyze a large number of codebases found ``in the wild,'' such as those written by amateurs.
+Our tool will seek to generate a human-checkable dependency graph from source code using notions of taint analysis. 
+
+For this project we consider codebases that maintain version history, in the hopes that we can employ static analysis techniques across program versions to infer more information about how entropy is being used; 
+our primary goal is to identify bugs that are introduced to existing codebases. This may prove to be especially helpful since naive taint analysis can provide mere overapproximations of data dependency for a given program and may generate many false alarms for programmers in a professional development setting.
+
+
+
+\section{Considered Approaches}
+
+One technique that we have considered is the notion of a ``product program.'' In the most general sense, the product $P_1 \times P_2$ of two programs $P_1$ and $P_2$ is used to verify
+relations between the programs, such as equivalence. Product programs have also been used to analyze different runs of the same program. 
+The product program $P_1 \times P_2$ is semantically equivalent to the sequential composition $P_1; P_2$, but such that we can prove useful safety properties of $P_1 \times P_2$ that would be difficult to prove with standard techniques on $P_1$, $P_2$, or $P_1; P_2$.
+
+In our setting, we are not so much interested in proving safety properties of a program $P$ but instead wish to prove that cryptographic values rely on sufficiently many bits of entropy when they are used via taint analysis.
+The notion of product programs helps us introduces the concept of ``differential taint analysis'' which will give u
+
+Given two versions $P_1, P_2$ of the same program P, we propose a relational verification for the entropy of the cryptographic values in the program. By  
+we hope to produce a The safety property we are the most interested in proving is that  
 
 
 \section{Example}
