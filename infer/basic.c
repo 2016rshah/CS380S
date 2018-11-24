@@ -12,6 +12,7 @@ int main(int argc, char** argv) {
     char rand_bytes[1024];
     int urandomFd = open("/dev/urandom", O_RDONLY);
     Csprng rng;
+    init_csprng(&rng);
 
     if (urandomFd == -1) {
         printf("Failed to open /dev/urandom with errno %d\n", errno);
@@ -23,13 +24,22 @@ int main(int argc, char** argv) {
             return -1;
         }
         close(urandomFd);
-        init_csprng(&rng, seed);
-        rng.gen_random(&rng, rand_bytes, sizeof rand_bytes);
-        for(int i = 0; i < sizeof rand_bytes; i++) {
-            printf("%.2x", rand_bytes[i]);
-        }
-        printf("\n");
+        // comment this line out for bad things!
+        rng.update_seed(&rng, seed, KEY_SIZE);
     }
+
+    pid_t pid = getpid();
+    char pid_seed[4];
+    for (int i = 0; i < 4; i++) {
+        pid_seed[i] = (pid >> (24 - 8*i)) & 0xFF;
+    }
+    rng.update_seed(&rng, pid_seed, 4);
+
+    rng.gen_random(&rng, rand_bytes, sizeof rand_bytes);
+    for(int i = 0; i < sizeof rand_bytes; i++) {
+        printf("%.2x", rand_bytes[i]);
+    }
+    printf("\n");
 
     return 0;
 }
