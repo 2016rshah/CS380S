@@ -1,3 +1,5 @@
+#include "assert.h"
+
 extern int f();
 
 int main() {
@@ -11,11 +13,7 @@ int main() {
 		x1 = 2;
 		x2 = 1;
 	}
-	if(x1 != x2) {
-		goto ERROR;
-	}
-	return (0);
-  ERROR:
-  return (-1);
+	assert(x1 == x2);
+	return 0;
 }
 
