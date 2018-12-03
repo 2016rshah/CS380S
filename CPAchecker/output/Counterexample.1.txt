@@ -1,0 +1,45 @@
+none:	N1 -{INIT GLOBAL VARS}-> N32
+/usr/include/assert.h, lines 69-71:	N32 -{void __assert_fail(const char *__assertion, const char *__file, unsigned int __line, const char *__function);}-> N33
+/usr/include/assert.h, lines 74-76:	N33 -{void __assert_perror_fail(int __errnum, const char *__file, unsigned int __line, const char *__function);}-> N34
+/usr/include/assert.h, lines 81-82:	N34 -{void __assert(const char *__assertion, const char *__file, int __line);}-> N35
+line 4:	N35 -{int p1();}-> N36
+line 5:	N36 -{int p2();}-> N37
+line 8:	N37 -{int A1 = 101;}-> N38
+	A1 == 101;
+lines 10-58:	N38 -{int main();}-> N39
+none:	N39 -{Function start dummy edge}-> N2
+line 11:	N2 -{int rng1;}-> N3
+line 12:	N3 -{int rng2;}-> N4
+	rng2 == 102;
+lines 13-53:	N4 -{int __CPAchecker_TMP_0;}-> N8
+lines 13-53:	N8 -{__CPAchecker_TMP_0 = p1();}-> N9
+	__CPAchecker_TMP_0 == 0;
+	rng2 == 102;
+	A1 == 101;
+line 13:	N9 -{[__CPAchecker_TMP_0 == 0]}-> N7
+	__CPAchecker_TMP_0 == 0;
+line 18:	N7 -{int seed1 = A1;}-> N12
+	seed1 == 101;
+line 19:	N12 -{int seed2 = A1;}-> N13
+	seed2 == 101;
+lines 20-30:	N13 -{void __CPAchecker_TMP_1;}-> N14
+	seed2 == 101;
+	seed1 == 101;
+lines 20-22:	N14 -{[seed1 == seed2]}-> N15
+	seed1 == 101;
+seed2 == 101;
+lines 20-28:	N15 -{0;}-> N17
+lines 20-30:	N17 -{0;}-> N18
+lines 21-24:	N18 -{int __CPAchecker_TMP_2;}-> N21
+lines 21-24:	N21 -{__CPAchecker_TMP_2 = p2();}-> N22
+	__CPAchecker_TMP_2 == 0;
+line 21:	N22 -{[__CPAchecker_TMP_2 == 0]}-> N19
+	__CPAchecker_TMP_2 == 0;
+line 26:	N19 -{rng1 = seed1;}-> N25
+	rng1 == 101;
+lines 28-38:	N25 -{void __CPAchecker_TMP_3;}-> N26
+	rng1 == 101;
+lines 28-30:	N26 -{[!(rng1 == rng2)]}-> N28
+	rng1 == 101;
+rng2 == 102;
+lines 28-36:	N28 -{__assert_fail("rng1 == rng2", "bench1/simplified-product-incorrect.c", 28, "__PRETTY_FUNCTION__");}-> N29

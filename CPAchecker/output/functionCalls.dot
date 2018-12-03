@@ -1,0 +1,11 @@
+digraph functioncalls {
+rankdir=LR;
+
+main [shape="box", color=blue];
+p1 [shape="box", color=grey];
+main -> p1;
+__assert_fail [shape="box", color=grey];
+main -> __assert_fail;
+p2 [shape="box", color=grey];
+main -> p2;
+}

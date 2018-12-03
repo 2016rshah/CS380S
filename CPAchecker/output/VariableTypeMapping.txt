@@ -1,0 +1,10 @@
+A1	6
+main::__CPAchecker_TMP_3	0
+main::__CPAchecker_TMP_2	7
+main::__CPAchecker_TMP_1	0
+main::rng1	6
+main::__CPAchecker_TMP_0	7
+main::seed2	6
+main::__retval__	6
+main::seed1	6
+main::rng2	6

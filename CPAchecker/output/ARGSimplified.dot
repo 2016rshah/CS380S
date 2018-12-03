@@ -1,0 +1,10 @@
+digraph ARG {
+node [style="filled" shape="box" color="white"]
+0 [fillcolor="cornflowerblue" label="0 @ N1\nmain entry\nAbstractionState: ABS0: true\n" id="0"]
+28 [fillcolor="orange" label="28 @ N0\nmain exit\n" id="28"]
+33 [fillcolor="red" label="33 @ N29\nmain\nAbstractionState: ABS3\n AutomatonState: AssertionAutomaton: _predefinedState_ERROR\n" id="33"]
+30 [fillcolor="orange" label="30 @ N27\nmain\n" id="30"]
+0 -> 30 []
+0 -> 33 []
+0 -> 28 []
+}

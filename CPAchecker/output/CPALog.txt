@@ -1,0 +1,34 @@
+2018-12-03 14:56:53:702	INFO	ResourceLimitChecker.fromConfiguration	Using the following resource limits: CPU-time limit of 900s
+
+2018-12-03 14:56:53:787	INFO	CPAchecker.run	CPAchecker 1.6.1 (OpenJDK 64-Bit Server VM 1.8.0_181) started
+
+2018-12-03 14:56:54:777	WARNING	CheckBindingVisitor.visit	Undefined function printf found, first called in line 14
+
+2018-12-03 14:56:55:529	INFO	PredicateCPA:PredicateCPA.<init>	Using predicate analysis with SMTInterpol 2.1-238-g1f06d6a-comp and JFactory 1.21.
+
+2018-12-03 14:56:55:623	INFO	PredicateCPA:InvariantsManager.<init>	No invariants are computed
+
+2018-12-03 14:56:55:826	INFO	PredicateCPA:PredicateCPARefiner.<init>	Using refinement for predicate analysis with PredicateAbstractionRefinementStrategy strategy.
+
+2018-12-03 14:56:55:860	INFO	CPAchecker.runAlgorithm	Starting analysis ...
+
+2018-12-03 14:56:55:890	INFO	PredicateCPA:ExpressionToFormulaVisitor.visit	Assuming external function p1 to be a constant function.
+
+2018-12-03 14:56:55:904	WARNING	PredicateCPA:CtoFormulaConverter.getReturnType	line 14: Return type of function printf is void, but result is used as type int: printf("Failed to open /dev/urandom with errno \n");
+
+2018-12-03 14:56:55:909	WARNING	PredicateCPA:ExpressionToFormulaVisitor.visit	Cannot get declaration of function printf, ignoring calls to it.
+
+2018-12-03 14:56:55:989	INFO	PredicateCPA:ExpressionToFormulaVisitor.visit	Assuming external function p2 to be a constant function.
+
+2018-12-03 14:56:55:993	WARNING	PredicateCPA:CtoFormulaConverter.getReturnType	line 22: Return type of function printf is void, but result is used as type int: printf("Failed to read bytes from /dev/urandom as requested, with errno \n");
+
+2018-12-03 14:56:56:069	INFO	CounterexampleCheckAlgorithm.checkCounterexample	Error path found, starting counterexample check with CPACHECKER.
+
+2018-12-03 14:56:56:078	INFO	CounterexampleCheck:ResourceLimitChecker.fromConfiguration	Using the following resource limits: CPU-time limit of 900s
+
+2018-12-03 14:56:56:086	INFO	CounterexampleCheck:EclipseParsers.getClassLoader	Repeated loading of Eclipse source parser
+
+2018-12-03 14:56:56:471	INFO	CounterexampleCheckAlgorithm.checkCounterexample	Error path found and confirmed by counterexample check with CPACHECKER.
+
+2018-12-03 14:56:56:471	INFO	CPAchecker.runAlgorithm	Stopping analysis ...
+
