@@ -1,6 +1,0 @@
-(declare-fun |main::seed2| () Int)
-(declare-fun |main::seed1| () Int)
-
-main:
-(assert (= |main::seed1| |main::seed2|))
-

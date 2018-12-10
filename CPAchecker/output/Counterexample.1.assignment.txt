@@ -1,9 +1,0 @@
-A1@2: 101
-main::__CPAchecker_TMP_0@3: 0
-main::__CPAchecker_TMP_2@3: 0
-main::rng1@3: 101
-main::rng2@2: 102
-main::seed1@2: 101
-main::seed2@2: 101
-p1: 0
-p2: 0

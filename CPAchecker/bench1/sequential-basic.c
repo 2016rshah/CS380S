@@ -5,8 +5,6 @@
 
 #include "rng.h"
 
-#include "assert.h"
-
 #define KEY_SIZE 128
 
 int main(int argc, char** argv) {
@@ -25,7 +23,7 @@ int main(int argc, char** argv) {
         printf("Failed to open /dev/urandom with errno %d\n", errno);
         return -1;
     } else {
-        ssize_t result = read(urandomFd, seed, key_SIZE);
+        ssize_t result = read(urandomFd, seed, KEY_SIZE);
         if (result != KEY_SIZE) {
             printf("Failed to read %d bytes from /dev/urandom as requested, with errno %d\n", KEY_SIZE, errno);
             return -1;
@@ -45,8 +43,9 @@ int main(int argc, char** argv) {
         }
         close(urandomFd2);
         // comment this line out for bad things!
-        // rng2.update_seed(&rng2, seed2, KEY_SIZE);
+        rng2.update_seed(&rng2, seed2, KEY_SIZE);
     }
+    assert(rng.seed == rng2.seed); // this assertion is what I don't really understand
 
     pid_t pid = getpid();
     pid_t pid2 = getpid();
@@ -55,21 +54,20 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 4; i++) {
         pid_seed[i] = (pid >> (24 - 8*i)) & 0xFF;
     }
-    for (int i2 = 0; i2 < 4; i2++) {
-        pid_seed2[i] = (pid2 >> (24 - 8*i2)) & 0xFF;
+    for (int i = 0; i < 4; i++) {
+      pid_seed2[i] = (pid2 >> (24 - 8*i)) & 0xFF;
     }
     rng.update_seed(&rng, pid_seed, 4);
     rng2.update_seed(&rng2, pid_seed2, 4);
-
+    
     rng.gen_random(&rng, rand_bytes, sizeof rand_bytes);
-    rng.gen_random(&rng2, rand_bytes2, sizeof rand_bytes2);
+    rng2.gen_random(&rng2, rand_bytes2, sizeof rand_bytes2);
     for(int i = 0; i < sizeof rand_bytes; i++) {
         printf("%.2x", rand_bytes[i]);
     }
-    for(int i2 = 0; i2 < sizeof rand_bytes2; i2++) {
+    for(int i = 0; i < sizeof rand_bytes2; i++) {
         printf("%.2x", rand_bytes2[i]);
     }
     printf("\n");
-
-    return 0;
+    printf("\n");
 }
