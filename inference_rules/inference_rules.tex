@@ -1,0 +1,177 @@
+\documentclass{article}
+\usepackage{proof}
+
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{stmaryrd}
+
+\newcommand{\cross}{\otimes{}}
+
+
+\begin{document}
+
+We are using a state-of-the-art off-the-shelf predicate abstraction tool called CPAChecker. Sequentially composing $V_1$ and $V_2$ as $V_1\ ;\ V_2$ is a valid input to CPAChecker, but it might have trouble verifying the assertions. Constructing a product program by synchronizing the statements of $V_1$ and $V_2$ gives the predicate abstraction tool more power to reason about the composition. This synchronized approach is semantically equivalent to the sequential composition of the two programs. Although it is easier for CPAChecker to prove the assertions, the synchronized approach can also lead to an exponential blowup in the product program size in the presence of control flow branching or loops. Thus we outline three possible approaches: 
+
+\begin{enumerate}
+	\item Sequential composition 
+	\item Synchronized composition
+	\item Heuristic-optimized synchronized composition
+\end{enumerate}
+
+We will work with a simple set of standard semantics:  
+
+\[
+	\begin{array}{l l c l}
+		\emph{Statement} & S & := & 
+			\ \ A \\
+			& & & |~ S_1\ ;\ S_2 \\
+			& & & |~ \emph{if }p\emph{ then } S_1 \emph{ else } S_2 \\
+			& & & |~ \emph{while }p\emph{ } S \\
+		\emph{Predicate} & p &:=& \top ~~|~~ \bot ~~|~~ A ~~|~~ \lnot p ~~|~~ p \odot p \\
+		\emph{Operator} & \odot &:=& \land ~~|~~ \lor \\
+	\end{array}
+\]
+
+\subsection{Sequential Composition}
+
+	Consider the following code snippet and : 
+	
+	\begin{algorithm}[H]
+		\begin{algorithmic}
+			\If {complicatedFunction()}
+			    \State $x \gets legitRandomness()$
+			\Else
+			    \State $x \gets getPID()$
+			\EndIf
+		\end{algorithmic}
+	\end{algorithm}
+
+	and it's self-composiiton
+
+	\begin{algorithm}[H]
+		\begin{algorithmic}
+			\If {complicatedFunction()}
+			    \State $x \gets legitRandomness()$
+			\Else
+			    \State $x \gets getPID()$
+			\EndIf
+			\If {complicatedFunction()}
+			    \State $x' \gets legitRandomness()$
+			\Else
+			    \State $x' \gets getPID()$
+			\EndIf
+			\State $assert(x == x')$
+		\end{algorithmic}
+	\end{algorithm}
+
+	\begin{algorithm}[H]
+		\begin{algorithmic}
+			\If {complicatedFunction()}
+			    \State $x \gets legitRandomness()$
+			    \If {complicatedFunction()}
+    			    \State $x' \gets legitRandomness()$
+    			\Else
+    			    \State $x' \gets getPID()$
+    			\EndIf
+    			\State $assert(x == x')$
+			\Else
+			    \State $x \gets getPID()$
+			    \If {complicatedFunction()}
+				    \State $x' \gets legitRandomness()$
+				\Else
+				    \State $x' \gets getPID()$
+				\EndIf
+				\State $assert(x == x')$
+			\EndIf
+		\end{algorithmic}
+	\end{algorithm}
+
+
+\subsection{Synchronized Composiiton}
+
+	Here are our naive inference rules. These represent our approach for synchronized composition 
+
+	\[
+		\begin{array}{c}
+			\infer[]{A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\ \\
+			\infer[]{S_1 \cross S_2 \leadsto P}{
+				S_2 \cross S_1 \leadsto P
+			} \\ \\ \\
+			\infer[]{if(p)\ then\ S_1\ else\ S_2 \cross S \leadsto P}{
+				\text{$S_1 \cross S \leadsto S_1'$} \\
+				\text{$S_2 \cross S \leadsto S_2'$} \\
+				\text{$P = if(p)\ then\ S_1'\ else\ S_2'$}
+			} \\ \\ \\
+			\infer[]{while(p_1)\ S_1 \cross while(p_2)\ S_2 \leadsto P_0\ ;\ P_1\ ;\ P_2}{
+				\text{$P_0 = while(p_1 \land p_2)\ S_1\ ;\ S_2$} \\
+				\text{$P_1 = while(p_1)\ S_1$} \\
+				\text{$P_2 = while(p_2)\ S_2$}
+			}
+		\end{array}
+	\]
+
+\subsection{Heuristic-optimized synchronized composition}
+
+	Now we can add an environment $\Gamma$ such that $\Gamma \vdash S$ if there is some atomic statement $A$ in $S$ such that $A$ references a tainted variable. Conversely $\Gamma \nvdash S$ if for every variable $v$ in $S$, $v$ is not tainted by a source of genuine randomness. 
+
+
+	Our key insight is that the following inference rule can be used to optimize the synchronization
+
+	\[
+		\begin{array}{c}
+			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto S_1\ ;\ S_2}{
+				\Gamma \nvdash S_1 \\
+				\Gamma \nvdash S_2
+			} \\
+		\end{array}
+	\]
+
+	Our previous inference rules can also be trivially modified with $\Gamma$. This would give us the following set of inference rules: 
+
+	\[
+		\begin{array}{c}
+			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto S_1\ ;\ S_2}{
+				\Gamma \nvdash S_1 \\
+				\Gamma \nvdash S_2
+			} \\ \\ \\
+			\infer[]{\Gamma \vdash A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\ \\
+			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto P}{
+				\Gamma \vdash S_2 \cross S_1 \leadsto P
+			} \\ \\ \\
+			\infer[]{\Gamma \vdash if(p)\ then\ S_1\ else\ S_2 \cross S \leadsto P}{
+				\text{$\Gamma \vdash S_1 \cross S \leadsto S_1'$} \\
+				\text{$\Gamma \vdash S_2 \cross S \leadsto S_2'$} \\
+				\text{$P = if(p)\ then\ S_1'\ else\ S_2'$}
+			} \\ \\ \\
+			\infer[]{\Gamma \vdash while(p_1)\ S_1 \cross while(p_2)\ S_2 \leadsto P_0\ ;\ P_1\ ;\ P_2}{
+				\text{$P_0 = while(p_1 \land p_2)\ S_1\ ;\ S_2$} \\
+				\text{$P_1 = while(p_1)\ S_1$} \\
+				\text{$P_2 = while(p_2)\ S_2$}
+			}
+		\end{array}
+	\]
+
+	This is only a heuristic because it is not clear that the heuristic-optimized synchronized composition invariably gives CPAChecker as much power as the synchronized version. For example, consider the following counterexample and its self-composition:
+
+	\begin{algorithm}[H]
+		\begin{algorithmic}
+			\If {flag}
+			    \State $x \gets complicatedFunction1()$
+			\Else
+			    \State $x \gets complicatedFunction2()$
+			\EndIf
+			\If {$x == 7$}
+				\State $y \gets taint()$
+			\EndIf
+			\State $sink(y)$
+		\end{algorithmic}
+	\end{algorithm}
+
+	The theorem prover with our optimized rules would sequentially compose the initial if-statements because none of their program variables in the initial if statement are tainted. This would make it difficult or impossible for CPAChecker to prove the assertion (it would involve reasoning about the complicated functions). In contrast, the synchronized version might be able to relationally verify that if $y$ gets taint in $V_1$ then $y$ will get taint in $V_2$ while still treating the complicated functions as uninterpreted (it would still reason about the flag in version one and the flag in version two). % Not sure about my claims about the complicated functions and uninterpreted reasoning, etc. in this paragraph. 
+
+
+\end{document}
