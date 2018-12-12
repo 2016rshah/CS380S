@@ -1,0 +1,9 @@
+\providecommand{\ElG}{El Gamal}
+\begin{thebibliography}{GKW18}
+
+\bibitem[GKW18]{GKW18}
+Rishab Goyal, Venkata Koppula, and Brent Waters.
+\newblock Collusion resistant traitor tracing from learning with errors.
+\newblock 2018.
+
+\end{thebibliography}

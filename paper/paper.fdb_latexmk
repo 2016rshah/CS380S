@@ -1,6 +1,13 @@
 # Fdb version 3
-["pdflatex"] 1544642566 "/Users/andrewrussell/Desktop/CS380S/CS380S/paper/paper.tex" "paper.pdf" "paper" 1544642567
-  "/Users/andrewrussell/Desktop/CS380S/CS380S/paper/paper.tex" 1544642565 16381 24147ca4947c5b8e5a4feee8f161258e ""
+["bibtex paper"] 1544655298 "paper.aux" "paper.bbl" "paper" 1544655299
+  "/usr/local/texlive/2018/texmf-dist/bibtex/bst/base/alpha.bst" 1480098433 23907 a5f93555796fb564b924339521f10a7c ""
+  "paper.aux" 1544655299 3483 e45ca05aaad61495a3da5fc20a6f32d2 ""
+  "refs.bib" 1544642664 172886 d3c4c57491aa76732f6479457087faac ""
+  (generated)
+  "paper.blg"
+  "paper.bbl"
+["pdflatex"] 1544655298 "/Users/andrewrussell/Desktop/CS380S/CS380S/paper/paper.tex" "paper.pdf" "paper" 1544655299
+  "/Users/andrewrussell/Desktop/CS380S/CS380S/paper/paper.tex" 1544655296 17026 377b58f84b0da19a6bc2b13778b4b87d ""
   "/usr/local/texlive/2018/texmf-dist/fonts/enc/dvips/base/8r.enc" 1480098666 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/local/texlive/2018/texmf-dist/fonts/map/fontname/texfonts.map" 1511824771 3332 103109f5612ad95229751940c61aada0 ""
   "/usr/local/texlive/2018/texmf-dist/fonts/tfm/adobe/symbol/psyr.tfm" 1480098689 1408 5937f58aa508ea2cea4901c07d10f5fe ""
@@ -72,12 +79,13 @@
   "/usr/local/texlive/2018/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1523934492 2717033 f61a5287d9c22a39a74f1979fe3f905c ""
   "/usr/local/texlive/2018/texmf-var/web2c/pdftex/pdflatex.fmt" 1523934516 4220280 10cab8fbd7c5a7c52aba9917e190d018 ""
   "/usr/local/texlive/2018/texmf.cnf" 1523934483 577 0b39adfd7c93507ff20c9c14c2f1a33f ""
-  "paper.aux" 1544642567 3312 57f8c20f5d207dae7f81712695185459 ""
-  "paper.out" 1544642567 1697 2e1c34fcb4454886f959e873d491dd02 ""
-  "paper.tex" 1544642565 16381 24147ca4947c5b8e5a4feee8f161258e ""
+  "paper.aux" 1544655299 3483 e45ca05aaad61495a3da5fc20a6f32d2 ""
+  "paper.bbl" 1544655298 248 d5abd08be94d76587b7566137d979a2d "bibtex paper"
+  "paper.out" 1544655299 1763 beb40eb1961d5bf8ae28c6df0e84f6fb ""
+  "paper.tex" 1544655296 17026 377b58f84b0da19a6bc2b13778b4b87d ""
   "usenix.sty" 1544641970 2698 2f0034db10726fb1e0704f4476705393 ""
   (generated)
-  "paper.pdf"
+  "paper.out"
   "paper.aux"
   "paper.log"
-  "paper.out"
+  "paper.pdf"

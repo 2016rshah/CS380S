@@ -57,6 +57,8 @@ our primary goal is to identify bugs that are introduced to existing codebases. 
 
 \section{Preliminaries}
 
+In this section we describe the background necessary to understand our new approach.
+
 Test reference: \cite{GKW18}
 
 \subsection{Taint Analysis}
@@ -68,6 +70,14 @@ Test reference: \cite{GKW18}
 \subsection{Product Programs}
 
 \section{Our Approach}
+
+\subsection{Naive Approaches}
+
+Before we cover our approach to this problem we will briefly discuss a number of approaches that do not work, but build to our final result.
+
+A first attempt to solve this problem might include running taint analysis on each version $P_1$ and $P_2$ of the program. However, since
+taint analysis merely provides an overapproximation to this problem, this approach is necessarily unsound. Instead, we would like to view
+this as a $2$-safety property: 
 
 \subsection{Instrumenting Programs for Predicate Abstraction}
 
