@@ -1,0 +1,474 @@
+\documentclass{beamer} % "Beamer" is a word used in Germany to mean video projector. 
+
+\usetheme{metropolis} % Search online for beamer themes to find your favorite or use the Berkeley theme as in this file.
+
+
+\usepackage{color} % It may be necessary to set PCTeX or whatever program you are using to output a .pdf instead of a .dvi file in order to see color on your screen.
+\usepackage{graphicx} % This package is needed if you wish to include external image files.
+
+\theoremstyle{definition} % See Lesson Three of the LaTeX Manual for more on this kind of "proclamation."
+\newtheorem*{defn}{Definition} 
+\newtheorem{thm}{Theorem}  
+\newtheorem{lem}{Lemma}  
+
+
+
+\usepackage{multicol}
+\usepackage{mathtools}
+\usepackage{amsmath}
+\usepackage{mathrsfs}
+\usepackage{units}
+\usepackage{tikz}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\gen{\langle}{\rangle}
+\DeclarePairedDelimiter\size{|}{|}
+\DeclarePairedDelimiter\abs{|}{|}
+\DeclarePairedDelimiter\parens{(}{)}
+\setlength{\parindent}{0 pt}
+\newcommand{\FF}{\mathcal{F}}
+\newcommand{\EE}{\mathcal{E}}
+\newcommand{\BB}{\mathcal{B}}
+\newcommand{\PP}{\mathcal{P}}
+\newcommand{\AAA}{\mathcal{A}}
+\newcommand{\II}{\mathcal{I}}
+
+
+\title{New Static Analysis Techniques to Detect Entropy Failure Vulnerabilities}
+\author{Andrew Russell \& Rushi Shah} 
+\institute{The University of Texas at Austin}
+%\date{} 
+% Remove the % from the previous line and change the date if you want a particular date to be displayed; otherwise, today's date is displayed by default.
+
+\AtBeginSection[]  % The commands within the following {} will be executed at the start of each section.
+{
+\begin{frame} % Within each "frame" there will be one or more "slides."  
+\frametitle{Presentation Outline} % This is the title of the outline.
+\tableofcontents[currentsection]  % This will display the table of contents and highlight the current section.
+\end{frame}
+} % Do not include the preceding set of commands if you prefer not to have a recurring outline displayed during your presentation.
+
+\begin{document}
+
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}
+\frametitle{Entropy Failures: A Historical Perspective}
+
+\begin{center}
+\Large{Cryptography \& Digital signature schemes}
+
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Digital Signature Schemes}
+
+\begin{itemize}
+\item Canonical cryptographic protocols = encryption and decryption = \emph{data secrecy}
+\pause
+\item Digital signature schemes = \emph{data authenticity} = who sent the data
+\end{itemize}
+
+\begin{center}
+
+
+\end{center}
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Scheme procedures}
+
+\begin{center}
+\end{center}
+
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Signature generation}
+
+\textbf{Signature generation} produces a public key $p$ (an identity) and a secret key (a signature) $s$
+
+\begin{center}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Signing}
+
+\textbf{Signing} takes a message $\textcolor{red}{m}$ and produces a signed message $\textcolor{blue}{m'}$
+
+\begin{center}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Verification}
+
+\textbf{Verification} determines if a message $\textcolor{red}{m}$ and a signed message $\textcolor{blue}{m'}$ came from a particular person (designated by their public key $p$)
+
+\begin{center}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Real world}
+
+This is used billions of times per day
+
+\begin{center}
+
+vs. 
+
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Brief recap}
+
+Digital signature schemes provide \emph{authenticity}, not secrecy
+
+Still very necessary for any good cryptosystem
+
+\end{frame}
+
+
+\begin{frame}
+\frametitle{\;}
+
+\begin{center}
+\Large{Elliptic Curves}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Defining elliptic curves}
+\begin{definition}
+An elliptic curve over a field $\mathbb{F}$ consists of the points $(x,y)$ given by the equation
+\[
+	y^2 = x^3 + \textcolor{red}{a}x + \textcolor{blue}{b}
+\]
+where $\textcolor{red}{a},\textcolor{blue}{b} \in \mathbb{F}$ and $x^3 + \textcolor{red}{a}x + \textcolor{blue}{b}$ has no repeated factors.
+\end{definition}
+
+\scriptsize{\emph{(a field is a set where we can add, subtract, multiply and divide except for 0; think $\mathbb{R}$ or $\mathbb{Q}$)}}
+
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Examples}
+
+The curve $\textcolor{red}{a} = -1$ and $\textcolor{blue}{b} = 1$ over $\mathbb{R}$:
+                        
+\begin{center}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Examples}
+
+
+The curve $\textcolor{red}{a} = -1$ and $\textcolor{blue}{b} = 1$ over $\mathbb{F}_{163}$:
+                        
+\begin{center}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Arithmetic}
+
+We can perform arithmetic on the points of the elliptic curve.  To add two points $\textcolor{red}{P}$ and $\textcolor{blue}{Q}$:
+
+\begin{enumerate} 
+\item Draw the secant line between the two points
+\pause
+\item Find the third point of intersection of this line and the curve
+\pause
+\item Find the reflection of this point across the $x$-axis, and we're done!
+\end{enumerate}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Arithmetic example}
+
+\begin{center}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Arithmetic example}
+
+\begin{center}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Arithmetic example}
+
+\begin{center}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Adding a point to itself}
+
+\begin{center}
+For an integer $n$, we denote $P$ added to itself $n$ times by $nP$
+
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Adding a point to itself}
+
+\begin{center}
+For an integer $n$, we denote $P$ added to itself $n$ times by $nP$
+
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Adding a point to itself}
+
+\begin{center}
+For an integer $n$, we denote $P$ added to itself $n$ times by $nP$
+
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Fun fact}
+
+The points of an elliptic curve actually form an abelian \emph{group}.
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Bilinear pairings}
+
+We have a function $\phi: E \times E \to E$ such that it is \emph{bilinear} (we can pull out coefficients from either argument):
+
+\begin{center}
+$\phi(\textcolor{red}{a}P,Q) = \textcolor{red}{a}\cdot\phi(P,Q)$ 
+
+and 
+
+$\phi(P,\textcolor{blue}{b}Q) = \textcolor{blue}{b}\cdot\phi(P,Q)$
+\end{center}
+
+\end{frame}
+
+
+\begin{frame}
+\frametitle{\;}
+
+\begin{center}
+\Large{Digital signatures using elliptic curves}
+\end{center}
+
+\end{frame}
+
+
+\begin{frame}
+
+\frametitle{Elliptic curves and a signature scheme}
+
+Some setup: a trusted third party will generate an elliptic curve $E$ and a point $Q \in E$ randomly, and publish both publicly for everyone to see (e.g. via the Internet).
+
+\begin{center}
+\end{center}
+
+\end{frame}
+
+
+\begin{frame}
+
+\frametitle{Signature generation}
+
+Simply generate a random integer $\textcolor{blue}{s} \in \mathbb{Z}$ and compute the elliptic curve point $P = \textcolor{blue}{s}Q$.  
+
+\begin{center}
+\end{center}
+
+Your \textbf{secret key} is $\textcolor{blue}{s}$ and your \textbf{public key} is $P$.
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Signing}
+
+Let $\textcolor{red}{m} \in \mathbb{Z}$ be a message.  \pause To sign this message, first compute the elliptic curve point $M = \textcolor{red}{m}Q$.  
+
+\begin{center}
+\end{center}
+
+Thus, $M' = \textcolor{blue}{s}M = \textcolor{blue}{s}(\textcolor{red}{m}Q)$ is the signed message.
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Verification}
+
+To verify, we compute $R_1 = \phi(Q, M')$ and $R_2 = \phi(P, \textcolor{red}{m}Q)$ and test if $R_1 = R_2$.  \pause 
+
+To see why this works:  since $P = \textcolor{blue}{s}Q$ and $M' = \textcolor{blue}{s}(\textcolor{red}{m}Q)$ then by the bilinearity of $\phi$ we have:
+
+\begin{center}
+\begin{multicols}{2}
+\noindent
+\begin{align*}
+R_1 &= \phi(Q,M')\\
+&= \phi(Q,\textcolor{blue}{s}\textcolor{red}{m}Q)\\
+&= \textcolor{blue}{s}\textcolor{red}{m}\cdot\phi(Q,Q)\\\\
+\end{align*}
+
+\pause
+
+\begin{align*}
+R_2 &= \phi(P, \textcolor{red}{m}Q)\\
+&= \phi(\textcolor{blue}{s}Q, \textcolor{red}{m}Q)\\
+&= \textcolor{blue}{s}\cdot\phi(Q,\textcolor{red}{m}Q)\\
+&= \textcolor{blue}{s}\textcolor{red}{m}\cdot\phi(Q,Q)
+\end{align*}
+\end{multicols}
+\end{center}
+\end{frame}
+
+
+\begin{frame}
+\frametitle{\;}
+
+\begin{center}
+\Large{Security?}
+
+
+\tiny{Source: https://xkcd.com/538/}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Attacking our scheme}
+
+Given just a public key $P = sQ$ and public point $Q$, if we could recover the secret key $s$ then we can break the scheme by being able to sign any message we want
+
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Security in modern cryptography}
+
+Modern crypto defines security through reductions to ``hard problems"
+\pause
+
+\textbf{Proof of security:} a cryptosystem X is \emph{just as hard} to hack as it is to solve a ``hard" computational problem
+
+\pause
+
+Ex.: \textbf{\emph{If}} you can factor large integers quickly, \textbf{\emph{then}} you can break the RSA encryption scheme
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Defining our hard problem}
+
+We can make an analogy to computing logarithms: $P = Q^s$ and $Q$ 
+
+(because the points of an elliptic curve form a group, our $sQ = Q + Q + \cdots + Q$ could be written multiplicatively as $Q^s = Q \cdot Q \cdots Q$)
+
+\pause 
+
+So, we want to take the ``logarithm" of both sides to recover $s$: $$\log_Q(P) = s$$
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Discrete log problems}
+
+This is easy, with say, $\mathbb{F} = \mathbb{R}$
+
+\pause
+
+It is very hard in a discrete setting, with $\mathbb{F} = \mathbb{Z}/p\mathbb{Z}$
+
+\pause
+
+This is known as the discrete log problem
+\end{frame}
+
+\begin{frame}
+
+\frametitle{The discrete log problem}
+
+Discrete Log Problem: given two elliptic curve points $R = xP$ and $P$ over a \emph{finite field}, we cannot easily compute $x \in \mathbb{Z}$
+\end{frame}
+
+\begin{frame}
+
+\frametitle{Recap}
+
+We've covered:
+
+\begin{itemize}
+\item Basic elliptic curve arithmetic
+\item Digital signature schemes from EC machinery (particularly, pairing)
+\item A canonical ``proof of security" for why this scheme is secure
+\end{itemize}
+
+My thesis is primarily on the \emph{pairing} portion (specifically, the Weil pairing)
+\end{frame}
+
+\begin{frame}
+
+\frametitle{The End}
+
+\begin{center}
+\huge{Questions?}
+
+\small{and thank you!}
+\end{center}
+
+\end{frame}
+
+
+\end{document}
