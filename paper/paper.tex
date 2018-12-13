@@ -30,6 +30,7 @@
 \usepackage{amsthm}
 \usepackage{mathtools}
 \usepackage{algorithm}
+\usepackage{algorithmicx}
 \usepackage{algpseudocode}
 \usepackage{stmaryrd}
 
@@ -42,7 +43,7 @@
 \date{\today}
 
 %make title bold and 14 pt font (Latex default is non-bold, 16 pt)
-\title{\Large \bf New Static Analysis Techniques to Detect Entropy Failure Vulnerabilities}
+\title{\Large \bf New Static Analysis Techniques to Detect Entropy Failure Vulnerabilities in Modern Software Projects}
 
 %for single author (just remove % characters)
 \author{
@@ -71,9 +72,11 @@ our primary goal is to identify bugs that are introduced to existing codebases. 
 
 \subsection{Related Work}
 
+Differential assertion checking, verification modulo versions, relational verification using product programs, secure information flow as a safety problem
+
 \section{Preliminaries}
 
-\subsection{Toy Language}
+\subsection{Demonstrative Language}
 
 We will build our tool for a language consisting of a small set of semantic rules (Figure \ref{fig:semrules}).
 
@@ -93,7 +96,7 @@ We will build our tool for a language consisting of a small set of semantic rule
 \]
 \end{figure}
 
-Our results can be extended in a straightforward manner to an industrial standard language such as C.
+Our results can be extended in a straightforward manner to an industrial language such as C, and we do so for our evaluation (Section \ref{sec:eval}).
 
 \subsection{Taint Analysis}
 
@@ -115,27 +118,128 @@ traced back to a high-entropy source such as *nix's \texttt{/dev/urandom}.
 \subsection{$k$-safety properties}
 
 As opposed to a safety property of a program (for example, ``variable $x$ is always positive'' or ``pointer $p$ is never null''), which requires
-the absence of errors in a single program trace, a $k$-safety property of a program requires the absence of erroneous interactions between $k$
+the absence of errors in a single program trace \cite{alpern1987recognizing}, a $k$-safety property of a program requires the absence of erroneous interactions between $k$
 traces of the same program \cite{sousa2016cartesian}. A program property such as symmetry is a $2$-safety property.
 
 
 \subsection{Predicate Abstraction}
 
 Predicate abstraction is a specialized form of abstract interpretation that can be used for checking $1$-safety properties of programs
-\cite{flanagan2002predicate}.
+\cite{flanagan2002predicate}. Abstract interpretation is a static analysis technique for programs that allows a verifier to, in some cases, 
+automatically infer properties such as loop invariants. Formally we have:
 
+\begin{itemize}
+    \item $b \gets \mathsf{Verify}_{L}(\pi, P)$: Takes as input a $1$-safety property $\pi$ and a program $P$ and outputs an accepting bit $\top$ if
+    $P$ satisfies the safety property, and otherwise outputs a rejecting bit $\bot$ or fails to terminate otherwise.
+\end{itemize}
+
+CPAchecker \cite{beyer2011cpachecker} is an example of a state-of-the-art predicate abstraction verifier for the C programming language. In this work
+we are interested in the safety property of equality. We note that due to inherent hardness results such as NP-hardness and undecidability, predicate
+abstraction verifiers are based on heuristic methods and are not guaranteed to run in polynomial time, or even terminate.
 
 \subsection{Product Programs}
 
+The product $P_1 \times P_2$ of two programs $P_1$ and $P_2$ is not an entirely well-defined concept. In the most general sense, the product $P_1 \times P_2$ of 
+two programs $P_1$ and $P_2$ is used to verify
+relations between the programs, such as equivalence \cite{barthe2011relational}. Product programs have also been used to analyze different runs of the same program. 
+The product program $P_1 \times P_2$ is semantically equivalent to the sequential composition $P_1; P_2$, but such that we can prove useful 
+safety properties of $P_1 \times P_2$ that would be difficult to 
+prove with standard techniques on $P_1$, $P_2$, or $P_1; P_2$.
+
+For our purposes we simply require that $P_1 \times P_2$ is semantically
+equivalent to the sequential composition $P_1\ ;\ P_2$ of the two programs. Our goal in using the concept of product programs is to aid the predicate abstraction
+verifier. 
+
 \section{Our Approach}
 
-Want to use differential view since we can get more out of this. Unsound taint analysis example.
+Our main approach to this problem is to take two versions $P_1$ and $P_2$ of a program and prove $P_2$ \emph{relative} to $P_1$. We have several
+motivations for this approach:
+
+\begin{itemize}
+    \item Taint analysis is an (over)approximate solution.
+    \item Modern software projects often use version control history, and we can leverage that to give a static verifier more power (heuristically speaking).
+\end{itemize}
+
+Let us address the first point.
+An initial approach to this problem
+might consist of using off-the-shelf taint analysis (we would taint high-entropy sources and confirm that
+cryptographic functions receive high-entropy tainted inputs). 
+However, taint analysis merely provides an overapproximation to the actual entropy that is
+input to a cryptographic algorithm. Consider the program in Figure
+\ref{fig:prog1}. The variable $k$ is tainted with high-entropy, but will not contain high-entropy if $f()$ ever evaluates to false.
+
+\begin{figure}
+    \label{fig:prog1}
+    \caption{Taint analysis overapproximation}
+    \begin{center}
+    \begin{algorithmic}
+        
+        \If {$f()$}
+        \State $k \gets$ \textsf{read(128, ``/dev/urandom'')}
+        \Else
+        \State $k \gets$ \textsf{getpid()}
+        \EndIf
+        \State $\mathsf{ctxt} \gets $ \textsf{AES}$(k,\mathsf{ptxt})$
+    \end{algorithmic}
+\end{center}
+\end{figure}
+
+Now we consider the second point. Since software developers often have access to multiple revisions of a single program, we wish to use this additional information
+to do better than simple taint analysis on a single version. This allows for stronger security guarantees at lower cost: a software project can invest
+in manually auditing an initial version of its security-critical software, and then use our methods to prove that subsequent versions do not contain entropy
+failures provided that this initial version does not (i.e., a \emph{relative} or \emph{differential} notion of security). Additionally, since we expect
+program revisions (particularly those touching security-critical components) to be infrequent and small, we can reduce the scope of the verifier's work.
+
+\subsection{A First Attempt}
+
+Given that we wish to attain this differential notion of security, we first address a naive attempt at solving this problem using taint analysis.
+Consider the program in Figure \ref{fig:prog2} compared to the program in Figure \ref{fig:prog1}. The taint sets of $k$ in both versions of the program
+are equal, however, simply comparing for equality here is \emph{unsound} with respect to our differential notion of security, since for all program traces
+in which the first program is secure, all similar program traces in the second program are insecure.
+
+\begin{figure}
+    \label{fig:prog2}
+    \caption{Taint analysis unsoundness}
+    \begin{center}
+    \begin{algorithmic}
+        \If {$f()$}
+        \State $k \gets$ \textsf{getpid()}
+        \Else
+        \State $k \gets$ \textsf{read(128, ``/dev/urandom'')}
+        \EndIf
+        \State $\mathsf{ctxt} \gets $ \textsf{AES}$(k,\mathsf{ptxt})$
+    \end{algorithmic}
+\end{center}
+\end{figure}
 
 \subsection{Differential Taint Analysis}
 
 Description of differential taint analysis.
 
+\subsection{Overview}
+
+Our solution proceeds in three primary stages:
+
+\begin{itemize}
+    \item \textbf{Instrumentation:} In this step we reduce our taint analysis problem for each program version $P_1$ and $P_2$ to one of $2$-safety.
+    Additionally, we run taint analysis on each program to get outputs $\Gamma_1$ and $\Gamma_2$, which we use in the next step.
+    \item \textbf{Program syncronization:} Using our environment $\Gamma = \Gamma_1 \cup \Gamma_2$, our instrumented programs $P'_1$ and $P'_2$ from 
+    the previous step, we construct the product program $P'_1 \times P'_2$. This converts the $2$-safety problem to one of $1$-safety.
+    \item \textbf{Verification:} Finally, we pass $P'_1 \times P'_2$ to an off-the-shelf verifier to check the $1$-safety property to
+    prove security.
+\end{itemize}
+
+We describe these in more formal detail in the coming sections.
+
 \subsection{Instrumenting Programs for Predicate Abstraction}
+
+\textbf{Instrumentation:} Given two program versions $P_1$ and $P_2$, our sources $\Sigma$, and a taint analysis algorithm $\mathsf{Taint}_{S,L}$
+     we reduce the taint analysis problem to one of $1$-safety.
+    We do this for each $P_k$ by assigning constants $c$ to all sources $\sigma \in \Sigma$, and then where we would propagate taint using the rules $S$ for language $L$
+    in statements $s_i$ which is a function of program variables $v_i$ and only of ``entropy preserving" operations (described below) 
+    we replace with an uninterpreted function $f(v_1, \ldots, v_j)$. For statements $s'_i$ which are a
+    function of any tainted program variables $w_j$ and contain any ``non-entropy preserving operations'' (any operations that are not entropy preserving), we replace
+    with an uninterpreted function $g(w_1, \ldots, w_j)$. We output these programs as $P'_1$ and $P'_2$.
 
 Description of instrumentation algorithm.
 
@@ -220,6 +324,7 @@ Why the naive approach doesn't work (intractability). Introduce heuristic-based 
 Description of algorithm using the two subroutines above.
 
 \section{Evaluation}
+\label{sec:eval}
 
 \section{Conclusion}
 
@@ -306,50 +411,6 @@ relational verification work seeks to answer. Thus DAC will be considered furthe
 
 % Finally, even with a sufficiently precise taint analysis, it is unclear how to determine the ``correct'' set of sources a cryptographic value should rely on at any point in the program. For example, some programs will use weak entropy on system startup, and increase the entropy in those values, later on. Thus, by running our analysis on two versions of the program, we can use one version as an oracle for the correctness criteria of the other program. In other words, we can use it to infer what the set of taint results should be for any variable at any point in the program.  
 
-\section{Our Approach}
-Given the two programs in the example, we propose generating a product program similar to the following:
-
-\begin{algorithmic}
-\Function{$P_1 \times P_2$}{}
-\State $S_1 \gets$ entropy
-\State $S_2 \gets$ entropy
-\State $\vdots$
-\If {f()}
-\State c$_1 \gets$ AES($s_1$)
-\State $c_2 \gets$ AES($s_2$)
-\EndIf
-\State $\vdots$
-\EndFunction
-\end{algorithmic}
-
-Note that, during the construction of the product program, we need to be able to merge the if statements in the two programs. 
-
-We would like to demonstrate set equality between the taint for $s_1, s_2$ when they are used in the if statement, which amounts to demonstrating the equivalence of the taint propagation through the program. We would also like to demonstrate that we assign the output of a sufficiently entropic value to a variable in $P_1$ if and only if we also assign it that sufficiently entropic value in $P_2$.
-
-Proving these two properties (set-equality and equivalence of assignments) allows us to claim that $P_1$ has the safety property if and only if $P_2$ has the safety property.
-
-\section{Real World Applications}
-
-A verification tool like this could be especially useful for a maintainer of a project that relies on cryptographic values. For example, if she audits her code once to confirm that it uses entropy properly, she can use differential taint analysis on future commits to confirm that the new code does not introduce this class of bugs. % VMV?
-
-Our tool should be able to detect the infamous Debian OpenSSL entropy bug. We will also test our tool on other libraries that rely on entropy, such as Amazon's signal2noise, LibreSSL, GnuTLS, and GnuPG,
-which are not known to contain entropy bugs (and likely do not), but we can test on versions in which we introduce our own bugs.
-
-\section{Research Hypotheses}
-
-These are the principal hypotheses we would like to test:
-
-\begin{enumerate}
-	\item An automated tool can detect entropy bugs in real-world programs.
-	\item Entropy is insufficiently propagated in programs that rely on cryptography, or entropy propagation follows nontrivial code paths (due to error handling or other control flow).
-	\item Multiple versions of the same program can make static analysis for this domain more effective by lowering costs (computational and programmer) or providing more fine-grained information.
-\end{enumerate}
-
-\section{Future Work}
-
-As bad data flow can be a source of security bugs other than simply (lack of) entropy propagation (for example, 
-address disclosure and use-after-free bugs in browsers), we believe that our tool could also be applied to these settings to help prevent
-programmers from introducing security vulnerabilities into their projects.
 
 \section{Links}
 
