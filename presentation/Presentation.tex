@@ -65,32 +65,53 @@
 \end{frame}
 
 \begin{frame}
-\frametitle{Entropy Failures: A Historical Perspective}
+\frametitle{Entropy Failures In the Wild}
+	 - OpenSSL
 
-	\begin{center}
-	\Large{
-	\begin{enumerate}
-		\item OpenSSL
-		\item FreeBSD
-	\end{enumerate}
-	}
-	\end{center}
-
-	% Visual explanation?
-
+	 - FreeBSD
+	 % Visual explanation? 
+	 % Definition of entropy? What is entropy? System events. What is not entropy? getPID(). 
 \end{frame}
 
 \begin{frame}
 \frametitle{How Could This Have Been Avoided?}
+	- Audit code once, then use relational verification to prove you haven't introduced bugs with small changes to program
 
-	- Audit code once, then use relational verification to prove you haven't introduced bugs with small changes to program. 
+	- Differential approach works well with way software is written (CI, etc.)
+\end{frame}
 
-	- This differential approach works well with the way software is written (CI, etc.)
+\begin{frame}
+	Proposed Static Analysis Approach
+\end{frame}
+
+\begin{frame}
+\frametitle{Problem Statement}
+
+	Given two versions $V_1, V_2$ of a program, prove that if legitimate sources of entropy in $V_1$ flow into their sinks properly, then the same is true of $V_2$. 
+
+	If $v_1$ is the taint set of variable $v$ passed to sink in program one and $v_2$ is the taint set of $v$ in program two, then we would like \[assert(v_1 == v_2)\]
+
+	2-safety property: making an assertion based on two runs of programs. 
+
+	% In this case, a sink is basically a function that accepts a parameter that is expected to be sufficiently entropic
 
 \end{frame}
 
 \begin{frame}
-	\[\text{\Large{Background/Initial Approach}}\]
+\frametitle{Static Analysis}
+
+	- Static-analysis technique called predicate abstraction can prove 1-safety properties. 
+
+	- Existing techniques can transform 2-safety properties into 1-safety properties.
+
+	% Transform by sequentially composing or with product program. Can we combine these two approach with domain specific knowledge to make this a more tractable problem? 
+
+	% We'll say a few words about existing techniques, how they relate to this specific domain, and possible domain-specific optimizations we can make
+
+\end{frame}
+
+\begin{frame}
+	Our Approach
 \end{frame}
 
 \begin{frame}
@@ -113,34 +134,6 @@
 \end{frame}
 
 \begin{frame}
-\frametitle{Taint Analysis}
-
-	- Definition, terminology, uses, etc.
-
-	- Sources are legitimate sources of entropy (/dev/random/)
-
-	- Sinks are things like cryptographic algorithms (KDF)
-
-	- But taint analysis is unsound when used on two versions of the program (overapproximation)
-
-	% Couple of slides instead of just one
-
-\end{frame}
-
-\begin{frame}
-\frametitle{Predicate Abstraction}
-
-	- Finer grained version of taint analysis across versions of a program.
-
-	- Taint set of variable in program two should be a superset of taint set of variable in program one.
-
-	\pause
-
-	- Weaker version: if $v_1$ is the taint set of variable $v$ passed to sink in program one and $v_2$ is the taint set of $v$ in program two, then we would like \[assert(v_1 == v_2)\]
-
-\end{frame}
-
-\begin{frame}
 \frametitle{Predicate Abstraction}
 
 	- Off-the-shelf state-of-the-art: CPAChecker
@@ -148,7 +141,18 @@
 \end{frame}
 
 \begin{frame}
-\frametitle{Product Programs}
+\frametitle{High level overview}
+
+	\begin{enumerate}
+		\item Instrumentation
+		\item Product Program % convert 2 safety property into 1 safety property
+		\item Assertions + CPAChecker
+	\end{enumerate}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Product Program Construction}
 
 	- Sequential Composition \[S_1\ ;\ S_2\]
 
@@ -162,81 +166,114 @@
 
 \end{frame}
 
-\begin{frame}
-	\[\text{\Large{Algorithm}}\]
-\end{frame}
 
 \begin{frame}
-\frametitle{High level overview}
-
-	\begin{enumerate}
-		\item Instrumentation
-		\item Product Program
-		\item Assertions + CPAChecker
-	\end{enumerate}
-
+	Technical Details
 \end{frame}
+
+
+% only reason to mention instrumentation is to make it clear how we replace the sources with labelled constants and what we assert at the sinks
+
 
 \begin{frame}
 \frametitle{Instrumentation}
 	
-	- Replace sources with labelled constants
+	- Replace sources with labelled constants.
+
+	- For values that are tainted by more than one source (for example $S_1 + S_2$) replace with one of two uninterpreted functions over the sources: \begin{enumerate}
+		\item $preserving(s_1, s_2, \ldots, s_n)$. For example +, XOR, etc.
+		\item $nonPreserving(s_1, s_2, \ldots, s_n)$. For example left or right shift, etc.
+	\end{enumerate}
 
 	- Perform taint analysis on sources to generate environment $\Gamma$ which marks statements involving tainted variables. 
 
 \end{frame}
 
-\begin{frame}
-\frametitle{Instrumentation}
-	
-	- For values that are tainted by more than one source (for example $S_1 + S_2$) replace with one of two uninterpreted functions over the sources: \begin{enumerate}
-		\item $preserving(s_1, s_2, \ldots, s_n)$
-		\item $nonPreserving(s_1, s_2, \ldots, s_n)$
-	\end{enumerate}
-	
-	- Preserving functions are +, XOR, etc.
-	
-	- Non-preserving functions are left or right shift, etc.
-
-\end{frame}
 
 \begin{frame}
 \frametitle{Sequential Product Program}
+
+	- Most straightforward
+
+	- Hard for CPAChecker to reason about % unsubstantiated claim
 	
 \end{frame}
 
 \begin{frame}
-\frametitle{Naive Synchronized Product Program}
+\frametitle{Synchronized Product Program}
+
+	- Easiest for CPAChecker to reason about
+
+	- Exponential blowup
+
+	\[
+		\begin{array}{c}
+			\infer[]{A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\
+			\infer[]{S_1 \cross S_2 \leadsto P}{
+				S_2 \cross S_1 \leadsto P
+			} \\ \\
+			\infer[]{if(p)\ then\ S_1\ else\ S_2 \cross S \leadsto P}{
+				\text{$S_1 \cross S \leadsto S_1'$} &
+				\text{$S_2 \cross S \leadsto S_2'$} &
+				\text{$P = if(p)\ then\ S_1'\ else\ S_2'$}
+			} \\ \\
+			\infer[]{while(p_1)\ S_1 \cross while(p_2)\ S_2 \leadsto P_0\ ;\ P_1\ ;\ P_2}{
+				\text{$P_0 = while(p_1 \land p_2)\ S_1\ ;\ S_2$} &
+				\text{$P_1 = while(p_1)\ S_1$} &
+				\text{$P_2 = while(p_2)\ S_2$}
+			}
+		\end{array}
+	\]
 	
 \end{frame}
 
 \begin{frame}
-\frametitle{Heuristic-Optimized Synchronized Product Program}
+\frametitle{Hybrid Product Program}
+
+	- Based on key insight: don't reason precisely about unrelated parts of the program
+
+	- ``Unrelated'' if not tainted. Use environement $\Gamma$ and add following inference rule:
+
+	\[
+		\begin{array}{c}
+			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto S_1\ ;\ S_2}{
+				\Gamma \nvdash S_1 \\
+				\Gamma \nvdash S_2
+			} \\
+		\end{array}
+	\]
 	
 \end{frame}
 
 \begin{frame}
 \frametitle{Assertions + CPAChecker}
 	
+	For every variable $v$ that is tainted in a statement $s$ that is marked as a sink, insert an assertion: \[assert(v_1 == v_2)\]
+
+	Recall we replaced sources with labelled constants and propagated them, so this will be asserting the taintsets of the two variables are equivalent
+
+	CPAChecker returning TRUE means that $V_2$ is correct modulo $V_1$
+
 \end{frame}
 
 \begin{frame}
-\frametitle{Correctness}
+	Future Work
+\end{frame}
+
+\begin{frame}
+\frametitle{Push Button Implementation}
 	
 \end{frame}
 
 \begin{frame}
-	\[\text{\Large{Future Work}}\]
-\end{frame}
-
-\begin{frame}
-\frametitle{Implementation Evaluation}
+\frametitle{Evaluation}
 	
+	Evaluate conjectures about differences between three constructions of the product programs. 
+
+	An expirement comparing the three approaches will determine which one works best in practice. 
+
 \end{frame}
 
-\begin{frame}
-	\[\text{\Large{Conclusion}}\]
-\end{frame}
 
 \begin{frame}
 \frametitle{Acknowledgements}
@@ -244,8 +281,194 @@
 \end{frame}
 
 \begin{frame}
-\frametitle{References}
-	
+	Thank you!
 \end{frame}
+
+
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Entropy Failures: A Historical Perspective}
+
+% 	\begin{center}
+% 	\Large{
+% 	\begin{enumerate}
+% 		\item OpenSSL
+% 		\item FreeBSD
+% 	\end{enumerate}
+% 	}
+% 	\end{center}
+
+% 	% Visual explanation?
+
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{How Could This Have Been Avoided?}
+
+% 	- Audit code once, then use relational verification to prove you haven't introduced bugs with small changes to program. 
+
+% 	- This differential approach works well with the way software is written (CI, etc.)
+
+% \end{frame}
+
+% \begin{frame}
+% 	\[\text{\Large{Background/Initial Approach}}\]
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Language Semantics}
+
+% 	\[
+% 		\begin{array}{l l c l}
+% 			Statement & S & := & 
+% 				\ \ A \\
+% 				& & & |~ S_1\ ;\ S_2 \\
+% 				& & & |~ \text{if }p\text{ then } S_1 \text{ else } S_2 \\
+% 				& & & |~ \text{while }p\text{ } S \\
+% 			Predicate & p &:=& \top ~~|~~ \bot ~~|~~ A ~~|~~ \lnot p ~~|~~ p \odot p \\
+% 			Operator & \odot &:=& \land ~~|~~ \lor \\
+% 		\end{array}
+% 	\]
+
+% 	% Say in words we can model C with these semantics 
+
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Taint Analysis}
+
+% 	- Definition, terminology, uses, etc.
+
+% 	- Sources are legitimate sources of entropy (/dev/random/)
+
+% 	- Sinks are things like cryptographic algorithms (KDF)
+
+% 	- But taint analysis is unsound when used on two versions of the program (overapproximation)
+
+% 	% Couple of slides instead of just one
+
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Predicate Abstraction}
+
+% 	- Finer grained version of taint analysis across versions of a program.
+
+% 	- Taint set of variable in program two should be a superset of taint set of variable in program one.
+
+% 	\pause
+
+% 	- Weaker version: if $v_1$ is the taint set of variable $v$ passed to sink in program one and $v_2$ is the taint set of $v$ in program two, then we would like \[assert(v_1 == v_2)\]
+
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Predicate Abstraction}
+
+% 	- Off-the-shelf state-of-the-art: CPAChecker
+
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Product Programs}
+
+% 	- Sequential Composition \[S_1\ ;\ S_2\]
+
+% 	\pause
+
+% 	- Synchronized Composition \[S_1 \cross S_2\]
+
+% 	\pause
+
+% 	- Hybrid?
+
+% \end{frame}
+
+% \begin{frame}
+% 	\[\text{\Large{Algorithm}}\]
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{High level overview}
+
+% 	\begin{enumerate}
+% 		\item Instrumentation
+% 		\item Product Program
+% 		\item Assertions + CPAChecker
+% 	\end{enumerate}
+
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Instrumentation}
+	
+% 	- Replace sources with labelled constants
+
+% 	- Perform taint analysis on sources to generate environment $\Gamma$ which marks statements involving tainted variables. 
+
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Instrumentation}
+	
+% 	- For values that are tainted by more than one source (for example $S_1 + S_2$) replace with one of two uninterpreted functions over the sources: \begin{enumerate}
+% 		\item $preserving(s_1, s_2, \ldots, s_n)$
+% 		\item $nonPreserving(s_1, s_2, \ldots, s_n)$
+% 	\end{enumerate}
+	
+% 	- Preserving functions are +, XOR, etc.
+	
+% 	- Non-preserving functions are left or right shift, etc.
+
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Sequential Product Program}
+	
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Naive Synchronized Product Program}
+	
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Heuristic-Optimized Synchronized Product Program}
+	
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Assertions + CPAChecker}
+	
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Correctness}
+	
+% \end{frame}
+
+% \begin{frame}
+% 	\[\text{\Large{Future Work}}\]
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Implementation Evaluation}
+	
+% \end{frame}
+
+% \begin{frame}
+% 	\[\text{\Large{Conclusion}}\]
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{Acknowledgements}
+% 	\[\text{Prof. Hovav Shacham and Prof. Isil Dillig}\]
+% \end{frame}
+
+% \begin{frame}
+% \frametitle{References}
+	
+% \end{frame}
 
 \end{document}
