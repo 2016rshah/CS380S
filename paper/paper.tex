@@ -83,8 +83,8 @@ Differential assertion checking, verification modulo versions, relational verifi
 We will build our tool for a language consisting of a small set of semantic rules (Figure \ref{fig:semrules}).
 
 \begin{figure}
-\label{fig:semrules}
 \caption{}
+\label{fig:semrules}
 \[
 	\begin{array}{l l c l}
 		\emph{Statement} & S & := & 
@@ -171,8 +171,8 @@ input to a cryptographic algorithm. Consider the program in Figure
 \ref{fig:prog1}. The variable $k$ is tainted with high-entropy, but will not contain high-entropy if $f()$ ever evaluates to false.
 
 \begin{figure}
-    \label{fig:prog1}
     \caption{Taint analysis overapproximation}
+    \label{fig:prog1}
     \begin{center}
     \begin{algorithmic}
         
@@ -200,8 +200,8 @@ are equal, however, simply comparing for equality here is \emph{unsound} with re
 in which the first program is secure, all similar program traces in the second program are insecure.
 
 \begin{figure}
-    \label{fig:prog2}
     \caption{Taint analysis unsoundness}
+    \label{fig:prog2}
     \begin{center}
     \begin{algorithmic}
         \If {$f()$}
@@ -271,8 +271,8 @@ With the instrumented programs, we can construct a product program that is seman
 We present inference rules for composing statements in the two programs $S_1 \cross S_1$ into one program that is semantically equivalent to $S_1\ ;\ S_2$. The most basic inference rule simply involves sequentially composing two atomic statements, which do not involve any control flow to be syncrhonized. Also, because the variables in the two versions of the program have been renamed to be disjoint, we can introduce an inference rule for the commutativity of two statements.  
 
 \begin{figure}
-    \label{fig:infrules1}
     \caption{Basic Inference Rules}
+    \label{fig:infrules1}
     \[
 		\begin{array}{c}
 			\infer[]{A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\ \\
@@ -288,8 +288,8 @@ Next, we have the inference rule for synchronizing an if-statement with another 
 Finally, we have the inference rule for synchronizing two while loops. The intuition here is that we would like the two loops to operate in lock-step as long as possible. To maintain the equivalence with the sequential composition, we also run the remaining iterations in the leftover loop after the other loop's condition no longer holds.
 
 \begin{figure}
-    \label{fig:infrules2}
     \caption{Conditional and Loop Inference Rules}
+    \label{fig:infrules2}
     \[
 		\begin{array}{c}
 			\infer[]{if(p)\ then\ S_1\ else\ S_2 \cross S \leadsto P}{
@@ -315,8 +315,8 @@ We conjecture that the exponential blowup introduced by the naive inference rule
 We define these ``unrelated'' statements to be the ones that are not tainted by any legitimate entropy source. This is reasonable because our ultimate assertions we would like to prove will only be over the tainted variables. Thus, we can use the $\Gamma$ environment we constructed in the instrumentation step to augment our inference rules. We say that $\Gamma \vdash S$ if some variable referenced in $S$ is tainted by at least one legitimate source of entropy. Similarly, $\Gamma \nvdash S$ if no variable in the statement is tainted by any legitimate source of entropy. We introduce an optimization inference rule that does not lead to any exponential blowup for statements that are not entailed by $\Gamma$. 
 
 \begin{figure}
-    \label{fig:auginfrules1}
     \caption{Augmented Inference Rules}
+    \label{fig:auginfrules1}
     \[
 		\begin{array}{c}
 			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto S_1\ ;\ S_2}{
@@ -330,8 +330,8 @@ We define these ``unrelated'' statements to be the ones that are not tainted by 
 Then, we can make the corresponsding changes to our naive inference rules to recognize the $\Gamma$ environment we've introduced. This gives us the following set of augmented inference rules: % TODO: reference to figure
 
 \begin{figure}
-    \label{fig:auginfrules2}
     \caption{Augmented Inference Rules}
+    \label{fig:auginfrules2}
     \[
 		\begin{array}{c}
 			\infer[]{\Gamma \vdash A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\ \\
