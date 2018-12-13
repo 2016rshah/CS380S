@@ -11,6 +11,15 @@
 \newtheorem{thm}{Theorem}  
 \newtheorem{lem}{Lemma}  
 
+\usepackage{proof}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{stmaryrd}
+
 \newcommand{\cross}{\otimes{}}
 
 \usepackage{multicol}
@@ -67,6 +76,8 @@
 	}
 	\end{center}
 
+	% Visual explanation?
+
 \end{frame}
 
 \begin{frame}
@@ -83,6 +94,25 @@
 \end{frame}
 
 \begin{frame}
+\frametitle{Language Semantics}
+
+	\[
+		\begin{array}{l l c l}
+			Statement & S & := & 
+				\ \ A \\
+				& & & |~ S_1\ ;\ S_2 \\
+				& & & |~ \text{if }p\text{ then } S_1 \text{ else } S_2 \\
+				& & & |~ \text{while }p\text{ } S \\
+			Predicate & p &:=& \top ~~|~~ \bot ~~|~~ A ~~|~~ \lnot p ~~|~~ p \odot p \\
+			Operator & \odot &:=& \land ~~|~~ \lor \\
+		\end{array}
+	\]
+
+	% Say in words we can model C with these semantics 
+
+\end{frame}
+
+\begin{frame}
 \frametitle{Taint Analysis}
 
 	- Definition, terminology, uses, etc.
@@ -92,6 +122,8 @@
 	- Sinks are things like cryptographic algorithms (KDF)
 
 	- But taint analysis is unsound when used on two versions of the program (overapproximation)
+
+	% Couple of slides instead of just one
 
 \end{frame}
 

@@ -1,0 +1,6 @@
+Verification Modulo Versions Notes
+---
+2.Insertion: s. In our theoretical treatment we assume that we are given a function δ mapping each correctness condition from its program point in P to the corresponding program point(s) in P 0. In practice, we cannot ask the user to provide such a map, therefore we pick a function δ requiring a minimal syntactic matching that is easy to compute. Our pragmatic choice is to use call conditions (S, N ) where δ only needs to match entry points and callee functions among program versions.
+
+
+2.Concrete Semantic Guarantees:  Sufficient conditions are useful to find new bugs, while necessary conditions are useful to prove relative correctness (the absence of new bugs).
