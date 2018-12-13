@@ -36,6 +36,8 @@
 
 \newcommand{\cross}{\otimes{}}
 
+\usepackage[T1]{fontenc}
+
 \PassOptionsToPackage{hyphens}{url}\usepackage{hyperref}
 \begin{document}
 
@@ -233,6 +235,35 @@ We describe these in more formal detail in the coming sections.
 
 \subsection{Instrumenting Programs for Predicate Abstraction}
 
+	% Take C/C++ project and turn it into our IR. 
+
+	In the instrumentation phase, we take an entire software project, and augment it with the other inputs (like annotations) to prepare it for the static analysis we will perform. Ultimately, our goal is to make assertions about the taintsets of program variables at the sinks. But first, we will individually instrument each version of the software project.
+
+	First we transform the code from its existing state into the language whose semantics we described earlier. We also rename the variables in the second version of the program so their names are disjoint from the variable names in program one. Then, in both programs, we replace the legitimate sources of entropy with labelled constants. We propogate these labelled constants through the program to propagate the taint of the entropy. In the process of doing so, it is possible that a value is tainted by more than one source (which is why we are tracking the taintset). We replace statements that taint a value with two or more sources ($s_1, s_2, \ldots, s_n$) with one of two uninterpreted functions: 
+
+	\begin{enumerate}
+		\item $\textsf{preserving}(s_1, s_2, \ldots, s_n)$ if the operation preserves entropy (+, XOR, etc.)
+		\item $\textsf{non-preserving}(s_1, s_2, \ldots, s_n)$ if the operation does not preserve entropy (<<, >>, etc.)
+	\end{enumerate}
+
+	These uninterpreted functions are inferred to be pure functions over their variables, so they capture the notion of the taintset at that point. This allows us to assert their equality in the program we pass to CPAChecker. 
+
+	Next, we will collect information from the two versions of the program as we transform them that will guide our future inference rules. Namely, we will perform taint analysis on sources to populate the environment $\Gamma$ which marks statements involving tainted variables. $\Gamma \vdash S_1$ if $S_1$ references a variable that is tainted by a source with sufficiently high entropy.  
+
+	% Notice that if $x, y$ are both sufficiently entropic values then $x + y$ is also sufficiently entropic because the audition does not remove the entropy. Therefore addition is replaced with the $\textsf{preserving}$ function call. Contrast this with the left-shift, for example, which will remove entropy from the value. 
+
+
+	% The next step involves collecting static information about the program that will help us apply our inference rules. Namely, we will populate the environment $\Gamma$ such that 
+	
+
+
+
+  %   \item Replace sources with labelled constants
+  %   \item For values that are tainted by more than one source (for example $S_1 + S_2$) replace with one of two uninterpreted functions over the sources: \begin{enumerate}
+		% \item $\textsf{preserving}(s_1, s_2, \ldots, s_n)$. Ex: $+, \oplus$
+		% \item $\textsf{non-preserving}(s_1, s_2, \ldots, s_n)$. Ex: $<<, >>$
+  %   \end{enumerate}
+  %   \item Perform taint analysis on sources to generate environment $\Gamma$ which marks statements involving tainted variables.
 \textbf{Instrumentation:} Given two program versions $P_1$ and $P_2$, our sources $\Sigma$, and a taint analysis algorithm $\mathsf{Taint}_{S,L}$
      we reduce the taint analysis problem to one of $1$-safety.
     We do this for each $P_k$ by assigning constants $c$ to all sources $\sigma \in \Sigma$, and then where we would propagate taint using the rules $S$ for language $L$
@@ -245,7 +276,9 @@ Description of instrumentation algorithm.
 
 \subsection{Naive Product Program Inference Rules}
 
-Description of product program inference rules approach.
+With the instrumented programs, we can construct a product program that is semantically equivalent to the sequential composition of the two programs. However, we would like this product program to be more amenable to reason about for the static analysis tool. To this end, we would like to synchronize the control flow of the two programs as much as possible. 
+
+We present inference rules for composing statements in the two programs $S_1 \cross S_1$ into one program that is semantically equivalent to $S_1\ ;\ S_2$. The most basic inference rule simply involves sequentially composing two atomic statements, which do not involve any control flow to be syncrhonized. Also, because the variables in the two versions of the program have been renamed to be disjoint, we can introduce an inference rule for the commutativity of two statements.  
 
 \begin{figure}
     \label{fig:infrules1}
@@ -260,6 +293,10 @@ Description of product program inference rules approach.
     \]
 \end{figure}
 
+Next, we have the inference rule for synchronizing an if-statement with another statement. If $S_1$ is the taken branch, $S_2$ is the not-taken branch, and $S$ is the statement after the entire if-else-statement, then we would like to inject $S$ separately into each branch. This simple transformation is clearly equivalent to the sequential composition of the if-statement and $S$. The benefit of this transformation, however, is that the predicate abstraction tool has more information about the trace taken with which it can reason about product program. 
+
+Finally, we have the inference rule for synchronizing two while loops. The intuition here is that we would like the two loops to operate in lock-step as long as possible. To maintain the equivalence with the sequential composition, we also run the remaining iterations in the leftover loop after the other loop's condition no longer holds.
+
 \begin{figure}
     \label{fig:infrules2}
     \caption{Conditional and Loop Inference Rules}
@@ -270,7 +307,7 @@ Description of product program inference rules approach.
 				\text{$S_2 \cross S \leadsto S_2'$} \\
 				\text{$P = if(p)\ then\ S_1'\ else\ S_2'$}
 			} \\ \\ \\
-			\infer[]{while(p_1)\ S_1 \cross while(p_2)\ S_2 \leadsto P_0\ ;\ P_1\ ;\ P_2}{
+			\infer[]{while(p_1)\ S_1 \cross while(p_2)\ S_2 \leadsto P_0\ \cross\ P_1\ ;\ P_2}{
 				\text{$P_0 = while(p_1 \land p_2)\ S_1\ ;\ S_2$} \\
 				\text{$P_1 = while(p_1)\ S_1$} \\
 				\text{$P_2 = while(p_2)\ S_2$}
@@ -279,9 +316,13 @@ Description of product program inference rules approach.
     \]
 \end{figure}
 
+Although these inference rules are semantically equivalent to the sequential composition, and clearly provide benefit to CPAChecker, this proving strength comes at a cost. Namely, the if statements and the while loops lead to an exponential blowup in the size of the product program being reasoned about as a result of the copied statements. 
+
 \subsection{Taint-augmented Inference Rules}
 
-Why the naive approach doesn't work (intractability). Introduce heuristic-based approach.
+We conjecture that the exponential blowup introduced by the naive inference rules is avoidable in some cases. In particular, our key insight is that we don't need the extra proving power provided by the synchronization in parts of the program that are unrelated to entropy. For these program statements, we can resort to the sequential composition. For example, consider a large software program: only a small portion of the code base will be related to the entropy. Therefore, we should concentrate the bulk of our analysis on this small portion of the code. 
+
+We define these ``unrelated'' statements to be the ones that are not tainted by any legitimate entropy source. This is reasonable because our ultimate assertions we would like to prove will only be over the tainted variables. Thus, we can use the $\Gamma$ environment we constructed in the instrumentation step to augment our inference rules. We say that $\Gamma \vdash S$ if some variable referenced in $S$ is tainted by at least one legitimate source of entropy. Similarly, $\Gamma \nvdash S$ if no variable in the statement is tainted by any legitimate source of entropy. We introduce an optimization inference rule that does not lead to any exponential blowup for statements that are not entailed by $\Gamma$. 
 
 \begin{figure}
     \label{fig:auginfrules1}
@@ -296,6 +337,8 @@ Why the naive approach doesn't work (intractability). Introduce heuristic-based 
     \]
 \end{figure}
 
+Then, we can make the corresponsding changes to our naive inference rules to recognize the $\Gamma$ environment we've introduced. This gives us the following set of augmented inference rules: % TODO: reference to figure
+
 \begin{figure}
     \label{fig:auginfrules2}
     \caption{Augmented Inference Rules}
@@ -305,6 +348,10 @@ Why the naive approach doesn't work (intractability). Introduce heuristic-based 
 			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto P}{
 				\Gamma \vdash S_2 \cross S_1 \leadsto P
 			} \\ \\ \\
+			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto S_1\ ;\ S_2}{
+				\Gamma \nvdash S_1 \\
+				\Gamma \nvdash S_2
+			} \\ \\ \\
 			\infer[]{\Gamma \vdash if(p)\ then\ S_1\ else\ S_2 \cross S \leadsto P}{
 				\text{$\Gamma \vdash S_1 \cross S \leadsto S_1'$} \\
 				\text{$\Gamma \vdash S_2 \cross S \leadsto S_2'$} \\
@@ -313,11 +360,14 @@ Why the naive approach doesn't work (intractability). Introduce heuristic-based 
 			\infer[]{\Gamma \vdash while(p_1)\ S_1 \cross while(p_2)\ S_2 \leadsto P_0\ ;\ P_1\ ;\ P_2}{
 				\text{$P_0 = while(p_1 \land p_2)\ S_1\ ;\ S_2$} \\
 				\text{$P_1 = while(p_1)\ S_1$} \\
-				\text{$P_2 = while(p_2)\ S_2$}
+				\text{$P_2 = while(p_2)\ S_2$} \\
+				\text{$P = if(p)\ then\ S_1'\ else\ S_2'$}
 			}
 		\end{array}
     \]
 \end{figure}
+
+% TODO: Notice that this optimization is only a heuristic. % (taint analysis isn't sufficient given the code snippet Isil mentioned). 
 
 \subsection{Putting it all together}
 
@@ -326,88 +376,66 @@ Description of algorithm using the two subroutines above.
 \section{Evaluation}
 \label{sec:eval}
 
+% TODO
+
 \section{Conclusion}
 
 In this work we present a new static analysis technique to aid in the prevention of entropy-misuse security vulnerabilities, such as those
 found in the Debian OpenSSL and FreeBSD projects.
 
-\section{Future Work}
+% \section{Future Work}
 
-Verify the following conjectures. Prove that a heuristic-based approach is no less powerful than a full product program approach.
-Run this tool on projects in the wild to determine how widespread entropy-misuse bugs are among software projects ``in the wild.''
+% Verify the following conjectures. Prove that a heuristic-based approach is no less powerful than a full product program approach.
+% Run this tool on projects in the wild to determine how widespread entropy-misuse bugs are among software projects ``in the wild.''
 
-\section{Considered Approaches}
+% \section{Considered Approaches}
 
-\subsection{Taint Analysis}
-Static code analysis has a history of identifying security vulnerabilities at a source code level. Some examples include SQL injection, cross-site scripting exploits, and buffer overflow attacks. However, there has not been any attempt in the literature to statically analyze source code for cryptographic vulnerabilities stemming from entropy misuse, which we seek to do. We claim that standard static code analysis techniques developed thus far are insufficient for the analysis we would like to perform. 
-The sources of entropy can be tainted standard taint analysis techniques can be used to approximate how the taint propagates. But this approximation may be too coarse to provide useful information to the user. Even with a sufficiently precise taint analysis, it is unclear how to determine the ``correct'' set of sources a cryptographic value should rely on at any point in the program.
+% \subsection{Taint Analysis}
+% Static code analysis has a history of identifying security vulnerabilities at a source code level. Some examples include SQL injection, cross-site scripting exploits, and buffer overflow attacks. However, there has not been any attempt in the literature to statically analyze source code for cryptographic vulnerabilities stemming from entropy misuse, which we seek to do. We claim that standard static code analysis techniques developed thus far are insufficient for the analysis we would like to perform. 
+% The sources of entropy can be tainted standard taint analysis techniques can be used to approximate how the taint propagates. But this approximation may be too coarse to provide useful information to the user. Even with a sufficiently precise taint analysis, it is unclear how to determine the ``correct'' set of sources a cryptographic value should rely on at any point in the program.
 
-\subsection{Differential Taint Analysis}
+% \subsection{Differential Taint Analysis}
 
-Since we want a stronger notion of taint analysis than a naive approach, we intend to introduce and formalize the concept of ``differential taint analysis." Differential
-taint analysis, in the ideal, will give us more information than simple taint analysis by leveraging 
-the original version of the program as a source of ground truth. This additional information could include reducing programmer annotation work or reduce false positives between versions
-(since taint analysis overapproximates data flow). By viewing the original version of the program as bug-free, we reduce the number of code audits required:
-only the original version of the code would need to be audited, and future versions could rely on our tool to automatically detect bugs that were introduced by refactors.
+% Since we want a stronger notion of taint analysis than a naive approach, we intend to introduce and formalize the concept of ``differential taint analysis." Differential
+% taint analysis, in the ideal, will give us more information than simple taint analysis by leveraging 
+% the original version of the program as a source of ground truth. This additional information could include reducing programmer annotation work or reduce false positives between versions
+% (since taint analysis overapproximates data flow). By viewing the original version of the program as bug-free, we reduce the number of code audits required:
+% only the original version of the code would need to be audited, and future versions could rely on our tool to automatically detect bugs that were introduced by refactors.
 
-\subsection{Product Programs}
+% \subsection{Product Programs}
 
-One technique that we have considered toward the construction of differential taint analysis is the notion of a ``product program.'' In the most general sense, the product $P_1 \times P_2$ of two programs $P_1$ and $P_2$ is used to verify
-relations between the programs, such as equivalence. Product programs have also been used to analyze different runs of the same program. 
-The product program $P_1 \times P_2$ is semantically equivalent to the sequential composition $P_1; P_2$, but such that we can prove useful safety properties of $P_1 \times P_2$ that would be difficult to prove with standard techniques on $P_1$, $P_2$, or $P_1; P_2$.
+% One technique that we have considered toward the construction of differential taint analysis is the notion of a ``product program.'' In the most general sense, the product $P_1 \times P_2$ of two programs $P_1$ and $P_2$ is used to verify
+% relations between the programs, such as equivalence. Product programs have also been used to analyze different runs of the same program. 
+% The product program $P_1 \times P_2$ is semantically equivalent to the sequential composition $P_1; P_2$, but such that we can prove useful safety properties of $P_1 \times P_2$ that would be difficult to prove with standard techniques on $P_1$, $P_2$, or $P_1; P_2$.
 
-In our setting, we are not so much interested in proving safety properties of a program $P$ but instead wish to prove that cryptographic values rely on sufficiently many bits of entropy when they are used via taint analysis, 
-which is why we cannot simply leverage existing off-the-shelf product program analysis techniques.
+% In our setting, we are not so much interested in proving safety properties of a program $P$ but instead wish to prove that cryptographic values rely on sufficiently many bits of entropy when they are used via taint analysis, 
+% which is why we cannot simply leverage existing off-the-shelf product program analysis techniques.
 
-\subsubsection{Example}
+% \subsubsection{Example}
 
-Consider the following two programs $P_1$ and $P_2$ that are equivalent from a cryptographic point of view, but might have small feature changes. 
+% Consider the following two programs $P_1$ and $P_2$ that are equivalent from a cryptographic point of view, but might have small feature changes. 
 
-\begin{algorithmic}
-\Function{$P_1$}{}
-\State $s \gets$ entropy
-\State $\vdots$
-\If {$p$}
-\State $c \gets$ AES(s)
-\EndIf
-\State $\vdots$
-\EndFunction
-\\
-\Function{$P_2$}{}
-\State $s \gets$ entropy
-\State $\vdots$
-\If {$p$}
-\State $c \gets$ AES(s)
-\EndIf
-\State $\vdots$
-\EndFunction
-\end{algorithmic}
+% \begin{algorithmic}
+% \Function{$P_1$}{}
+% \State $s \gets$ entropy
+% \State $\vdots$
+% \If {$p$}
+% \State $c \gets$ AES(s)
+% \EndIf
+% \State $\vdots$
+% \EndFunction
+% \\
+% \Function{$P_2$}{}
+% \State $s \gets$ entropy
+% \State $\vdots$
+% \If {$p$}
+% \State $c \gets$ AES(s)
+% \EndIf
+% \State $\vdots$
+% \EndFunction
+% \end{algorithmic}
 
-where $p$ is some complex predicate that is difficult to reason about, but does not change between $P_1$ and $P_2$ (and no values that $p$ depends on change, either). Then, a safety property about the entropy of the cryptographic values in $c$ would hold in both programs or in neither program. 
-
-\subsection{Verification Modulo Versions}
-Verification modulo versions is an idea quite similar to product programs. VMV attempts to identify abstract regressions and relative correctness between two versions of a program.
-In VMV, the static analyzer is treated as opaque in an effort to cut down the number of alarms by inferring assumptions made by the original program (assumed to be correct). This is especially appealing in the security software development cycle because there are documented cases of entropy bugs being introduced in new versions of programs (for example, OpenSSL and FreeBSD). This would involve under-approximating the taint of one version of the program and over-approximating the taint of another version of the program. Current tooling does not widely support under-approximating taint analysis. 
-
-
-\subsection{Relational Verification}
-Another existing technique is relational verification, in which relational properties between two programs are used to prove $k$-safety properties. A $k$-safety property is a safety property of a program that requires 
-reasoning about the relationships between $k$ different runs of a program (or $k$ programs). For example, transitivity is a $k$-safety property.
-In our case, we would want to show the equivalence of entropy assignment and the equivalence of the entropy propagation. Relational verification utilitzes product programs; RV constructs a product program between versions of the program that captures the semantics of executing them sequentially, but that lends itself to standard verification techniques. 
-
-\subsection{Differential Assertion Checking}
-
-The last approach that we have considered is differential assertion checking. Differential assertion checking seeks to (statically) prove the relative correctness between two similar programs,
-with a significantly lower cost than ensuring absolute correctness. That is, DAC allows is to answer if there are conditions under which a program $P_1$ passes an assertion check but
-a program $P_2$ fails. The techniques utilized current DAC work may be of interest, but it seems they rely on an a priori mapping between the two programs, which is something that
-relational verification work seeks to answer. Thus DAC will be considered further after the idea of product programs is exhausted.
-
-% How is vmv related to relational verification? 
-
-
-% Standard taint analysis will under/overapproximate the taint, so we may not be able to use it to directly prove our safety property on the target program. Thus, we can leverage the approach verification modulo versions to prove relational verification. 
-
-% Relational verification aims to solve this problem by proving relational properties between two programs. However, the naive relational verification approach of verifying each program individually is infeasible given arbitrarily difficult-to-reason-about functions even if those functions do not change between versions of the program. One approach is to underapproximate the taint on one program and overapproximate the taint on another program to verify the set equality of taint sources, but this still falls prey to the approximation of taint analysis given arbitrarily complex functions. Also, current tooling does not widely support underapproximating taint analysis.
+% where $p$ is some complex predicate that is difficult to reason about, but does not change between $P_1$ and $P_2$ (and no values that $p$ depends on change, either). Then, a safety property about the entropy of the cryptographic values in $c$ would hold in both programs or in neither program. 
 
 % Finally, even with a sufficiently precise taint analysis, it is unclear how to determine the ``correct'' set of sources a cryptographic value should rely on at any point in the program. For example, some programs will use weak entropy on system startup, and increase the entropy in those values, later on. Thus, by running our analysis on two versions of the program, we can use one version as an oracle for the correctness criteria of the other program. In other words, we can use it to infer what the set of taint results should be for any variable at any point in the program.  
 
