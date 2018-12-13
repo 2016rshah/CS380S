@@ -68,19 +68,30 @@
 \titlepage
 \end{frame}
 
+
+\begin{frame}
+\frametitle{Entropy, What is it Good For?}
+     \begin{itemize}
+         \item Cryptographic algorithms need high-entropy inputs
+         \begin{itemize}
+             \item Kernel's \texttt{/dev/urandom}, Intel's \texttt{RDRAND}
+         \end{itemize}
+     \end{itemize}
+    \end{frame}
+
 \begin{frame}
 \frametitle{Entropy Failures in the Wild}
      \begin{itemize} 
         \item Debian OpenSSL (2008)
         \begin{itemize}
-            \item Removed key seed function call due to Valgrind error
+            \item Removed RNG seed call due to Valgrind warning
         \end{itemize}
 
         \pause
 
         \item FreeBSD (2016)
         \begin{itemize}
-            \item Kernel randomness never switches to ``secure mode'' after boot
+            \item Kernel randomness never switches to high entropy source after boot
        \end{itemize}
 	 \end{itemize}
 	 % Visual explanation? 
@@ -93,7 +104,9 @@
     \item Modern software is large and iterative:
     \begin{itemize}
         \item Code audits cost too much \$\$
+        \item Let's scale using static analysis
     \end{itemize}
+    \pause
     \item Idea: Use version control history to get better answers
     \item Audit code once, then use static analysis to prove you haven't introduced bugs with small changes to program
     \begin{itemize}
@@ -397,7 +410,7 @@
     \frametitle{Conclusion}
 
     \begin{itemize}
-        \item Progressive reduction from an unsound solution to a sound and tractable algorithm to solve entropy failure bugs in enterprise-scale software.
+        \item Progressive reduction from an unsound solution to a sound and tractable algorithm to catch entropy failure bugs in enterprise-scale software.
         \item Key insights: use version history, don't examine irrelevant parts of the program.
     \end{itemize}
 \end{frame}
