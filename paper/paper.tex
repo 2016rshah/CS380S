@@ -69,6 +69,8 @@ Our tool will seek to generate an error report from source code using notions of
 For this project we consider codebases that maintain version history, in the hopes that we can employ static analysis techniques across program versions to infer more information about how entropy is being used; 
 our primary goal is to identify bugs that are introduced to existing codebases. This may prove to be especially helpful since naive taint analysis can provide mere overapproximations of data dependency for a given program and may generate many false alarms for programmers in a professional development setting.
 
+\subsection{Related Work}
+
 \section{Preliminaries}
 
 \subsection{Toy Language}
@@ -101,7 +103,7 @@ We restrict our focus to the static variant. We define a taint analysis algorith
 \begin{itemize}
     \item $\Gamma \gets \mathsf{Taint}_{S,L}(\phi, T, \Sigma, Z, P)$: Takes as input an initial assignment $\phi$ of some taint sets $T = \{\tau_i\}$ to 
     a set of sources $\Sigma = \{\sigma_i\}$, and an input program $P$. Outputs an 
-    assignment $\Gamma$ of statements $s_i$ in the program $P$ to taint sets $\rho_i$ according to the taint propagation semantics $S$ for programming
+    assignment $\Gamma$ of statements $s_i$ in the program $P$ to taint sets $\tau_i \in T$ according to the taint propagation semantics $S$ for programming
     language $L$.
 \end{itemize}
 
