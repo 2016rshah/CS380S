@@ -96,11 +96,15 @@ Our results can be extended in a straightforward manner to an industrial standar
 \subsection{Taint Analysis}
 
 Taint analysis is a standard program analysis technique, typically used to detect security vulnerabilities in either a static or dynamic manner. 
-We restrict our focus to the static variant. Taint analysis takes as input an initial assignment of some taint sets $\{\tau_i\}$ to 
-a sources (program variables) $\{\sigma_i\}$, as well as a list of sinks $\{\zeta_i\}$ (function definitions). 
-Taint is propagated through program statements using the semantics of the programming language;
-for example, a variable $z = x + y$ will be assigned taint set $\tau_x \cup \tau_y$. The taint analysis outputs the taint set for each invocation
-of the sinks $\{\zeta_i\}$.
+We restrict our focus to the static variant. We define a taint analysis algorithm as follows:
+
+\begin{itemize}
+    \item $\Gamma \gets \mathsf{Taint}_{S,L}(\phi, T, \Sigma, Z, P)$: Takes as input an initial assignment $\phi$ of some taint sets $T = \{\tau_i\}$ to 
+    a set of sources $\Sigma = \{\sigma_i\}$, and an input program $P$. Outputs an 
+    assignment $\Gamma$ of statements $s_i$ in the program $P$ to taint sets $\rho_i$ according to the taint propagation semantics $S$ for programming
+    language $L$.
+\end{itemize}
+
 
 An example of static taint analysis is to determine if unsanitized user inputs are ever provided to vulnerable functions, such as SQL commands or
 a webpage templating function. In our case we wish to ensure that entropy-sensitive inputs to cryptographic functions (sinks) can be
@@ -385,8 +389,8 @@ programmers from introducing security vulnerabilities into their projects.
 		\end{enumerate}
 \end{enumerate}
 
-\bibliographystyle{alpha}
-\bibliography{refs}
+{\normalsize \bibliographystyle{acm}
+\bibliography{refs}}
 
 % We have two motivating examples. First, we would like our tool to be able to detect the issue with the Debian/OpenSSL pseudo-random number generator that was exposed in 2008. 
 % Second, we would like to identify potential vulnerabilities in current cryptocurrency wallet code as many cryptocurrency protocols rely on DSA.
