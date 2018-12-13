@@ -21,6 +21,9 @@
 \usepackage{algpseudocode}
 \usepackage{stmaryrd}
 
+\usepackage{transparent}
+\usepackage{graphicx}
+
 \newcommand{\cross}{\otimes{}}
 
 \usepackage{multicol}
@@ -85,24 +88,26 @@
 \end{frame}
 
 \begin{frame}
-\frametitle{How Could This Have Been Avoided?}
+\frametitle{Toward protecting industrial software projects}
 \begin{itemize}
-    \item Code audits? Too much \$\$
-    \item Taint analysis: Works, but overapproximates
+    \item Modern software is large and iterative:
+    \begin{itemize}
+        \item Code audits cost too much \$\$
+    \end{itemize}
     \item Idea: Use version control history to get better answers
     \item Audit code once, then use static analysis to prove you haven't introduced bugs with small changes to program
     \begin{itemize}
         \item Key idea: Prove version 2 is secure relative to version 1.
     \end{itemize}
 
-	\item ``Differential" approach works well with way software is written in the real world (CI, etc.)
+	% ``Differential" approach works well with way software is written in the real world 
 \end{itemize}
 \end{frame}
 
 \begin{frame}
 \frametitle{Problem Statement}
 
-	Given two versions $P_1, P_2$ of a program, prove that if legitimate sources of entropy in $P_1$ flow into their sinks properly, then the same is true of $P_2$. 
+	Given two versions $P_1, P_2$ of a program, prove that if strong sources of entropy in $P_1$ flow into crypto algorithms, then the same is true of $P_2$. 
 
 	If $\tau_1$ is the taint set of variable $x$ passed to sink in $P_1$ and $\tau_2$ is the taint set of $x$ in $P_2$, then we would like \[\tau_1 == \tau_2\]
 	
@@ -110,11 +115,24 @@
 	% In this case, a sink is basically a function that accepts a parameter that is expected to be sufficiently entropic
 
 \end{frame}
+{
+\usebackgroundtemplate{
+    \vbox to \paperheight{\vfil\hbox to \paperwidth{\hfil\includegraphics[width=2.25in]{trouble2.jpg}\hfil}\vfil}
+    }
+\begin{frame}
+    \frametitle{Trouble in Analysia}
+
+    
+    \begin{center}
+        \Large{Taint analysis is unsound between multiple versions of a program!}
+    \end{center}
+\end{frame}
+}
 
 \begin{frame}
     \frametitle{Our Contribution}
     
-        We propose a novel algorithm using recent developments in static analysis to solve this problem in a tractable way.
+        We propose a novel algorithm to detect relative entropy failures in a sound, tractable way.
         
     
         % In this case, a sink is basically a function that accepts a parameter that is expected to be sufficiently entropic
@@ -270,9 +288,6 @@
     \frametitle{Synchronized Product Program}
     
        \begin{itemize}
-           \item Easiest to reason about
-           \item However: exponential blowup (in number of branches)
-           \pause
            \item Basic inference rules:
        \end{itemize}
 
@@ -280,14 +295,11 @@
         \[
             \begin{array}{c}
                 \infer[]{A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\
+                \pause
                 \infer[]{S_1 \cross S_2 \leadsto P}{
                     S_2 \cross S_1 \leadsto P
-                } 
-            \end{array}
-        \]
-        \pause
-        \[
-            \begin{array}{c}
+                } \\ \\
+                \pause
                 \infer[]{if(p)\ then\ S_1\ else\ S_2 \cross S \leadsto P}{
                     \text{$S_1 \cross S \leadsto S_1'$} &
                     \text{$S_2 \cross S \leadsto S_2'$} &
@@ -295,7 +307,7 @@
                 } \\ \\
                 \pause
                 \infer[]{while(p_1)\ S_1 \cross while(p_2)\ S_2 \leadsto P_0\ ;\ P_1\ ;\ P_2}{
-                    \text{$P_0 = while(p_1 \land p_2)\ S_1\ ;\ S_2$} &
+                    \text{$P_0 = while(p_1 \land p_2)\ S_1 \cross S_2$} &
                     \text{$P_1 = while(p_1)\ S_1$} &
                     \text{$P_2 = while(p_2)\ S_2$}
                 }
@@ -308,19 +320,16 @@
         \frametitle{Synchronized Product Program}
         $$P_1 \times P_2$$
         \begin{center}
-            \begin{minipage}{0.5\linewidth}
+            \begin{minipage}{0.65\linewidth}
             
             \begin{algorithm}[H]
                 \begin{algorithmic}
                     \If {$p$}
                         \State $x_1 \gets 1$
-                        \If {$p$}
-                            \State $x_2 \gets 2$
-                        \Else
-                            \State $x_2 \gets 1$
-                        \EndIf
+                        \State if ($p$) $x_2 \gets 2$ else $x_2 \gets 1$ // $P_2$
                     \Else
-                        \State $\vdots$
+                        \State $x_1 \gets 2$
+                        \State if ($p$) $x_2 \gets 2$ else $x_2 \gets 1$ // $P_2$
                     \EndIf
                     \State \textsf{assert}$(x_1 == x_2)$
                 \end{algorithmic}
@@ -334,8 +343,11 @@
         \frametitle{Hybrid Product Program}
         
         \begin{itemize}
+           \item Product program easiest to reason about for a verifier
+           \item However: exponential blowup (in number of branches)
+           \pause
             \item Key insight: don't reason precisely about unrelated parts of the program
-            \item ``Unrelated'' if not tainted. Use environment $\Gamma$ and add following inference rule:
+            \item ``Unrelated'' if not tainted. Use environment $\Gamma$ (from instrumentation step) and add following inference rule:
             \[
                 \begin{array}{c}
                     \infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto S_1\ ;\ S_2}{
@@ -368,7 +380,7 @@
 \begin{frame}
 \frametitle{Taint $\to$ Safety}
 	
-	For every variable $x$ that is tainted in a statement $s$ that is marked as a sink, insert an assertion: \[\textsf{assert}(x_1 == x_2)\]
+	For every variable $x$ that is tainted in a statement $s$ that is marked as a sink, insert: \[\textsf{assert}(x_1 == x_2)\]
 
     Recall we replaced sources with labelled constants and propagated them, so this will be asserting the taintsets of the two variables are equivalent.
     
@@ -382,15 +394,23 @@
 \end{frame}
 
 \begin{frame}
-\frametitle{Acknowledgements}
-	\[\text{Prof. Hovav Shacham and Prof. Işil Dillig}\]
+    \frametitle{Conclusion}
+
+    \begin{itemize}
+        \item Progressive reduction from an unsound solution to a sound and tractable algorithm to solve entropy failure bugs in enterprise-scale software.
+        \item Key insights: use version history, don't examine irrelevant parts of the program.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}
+    \frametitle{Fin}
     \begin{center}
     Thank you! 
+
+    \emph{\scriptsize{(especially Prof. Hovav Shacham and Prof. Işil Dillig)}}
     
     \LARGE{Questions?}
+    
     \end{center}
 \end{frame}
 
