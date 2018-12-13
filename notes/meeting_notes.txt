@@ -1,0 +1,1 @@
+examples where they redo the entropy pool, shouldn't change the uses of entropy in like OpenSSL
