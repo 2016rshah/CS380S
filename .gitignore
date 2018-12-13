@@ -1,3 +1,6 @@
+# temp: PDF outputs:
+*.pdf
+
 infer-out/
 output/
 
