@@ -23,7 +23,17 @@
 \documentclass[letterpaper,twocolumn,10pt]{article}
 \usepackage{usenix,epsfig,endnotes}
 
+\usepackage{proof}
+
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage{stmaryrd}
+
+\newcommand{\cross}{\otimes{}}
 
 \PassOptionsToPackage{hyphens}{url}\usepackage{hyperref}
 \begin{document}
@@ -57,31 +67,159 @@ our primary goal is to identify bugs that are introduced to existing codebases. 
 
 \section{Preliminaries}
 
-Test reference: \cite{GKW18}
+\subsection{Toy Language}
+
+We will build our tool for a language consisting of a small set of semantic rules (Figure \ref{fig:semrules}).
+
+\begin{figure}
+\label{fig:semrules}
+\caption{}
+\[
+	\begin{array}{l l c l}
+		\emph{Statement} & S & := & 
+			\ \ A \\
+			& & & |~ S_1\ ;\ S_2 \\
+			& & & |~ \emph{if }p\emph{ then } S_1 \emph{ else } S_2 \\
+			& & & |~ \emph{while }p\emph{ } S \\
+		\emph{Predicate} & p &:=& \top ~~|~~ \bot ~~|~~ A ~~|~~ \lnot p ~~|~~ p \odot p \\
+		\emph{Operator} & \odot &:=& \land ~~|~~ \lor \\
+	\end{array}
+\]
+\end{figure}
+
+Our results can be extended in a straightforward manner to an industrial standard language such as C.
 
 \subsection{Taint Analysis}
 
-\subsection{Predicate Abstraction}
+Taint analysis is a standard program analysis technique, typically used to detect security vulnerabilities in either a static or dynamic manner. 
+We restrict our focus to the static variant. Taint analysis takes as input an initial assignment of some taint sets $\{\tau_i\}$ to 
+a sources (program variables) $\{\sigma_i\}$, as well as a list of sinks $\{\zeta_i\}$ (function definitions). 
+Taint is propagated through program statements using the semantics of the programming language;
+for example, a variable $z = x + y$ will be assigned taint set $\tau_x \cup \tau_y$. The taint analysis outputs the taint set for each invocation
+of the sinks $\{\zeta_i\}$.
+
+An example of static taint analysis is to determine if unsanitized user inputs are ever provided to vulnerable functions, such as SQL commands or
+a webpage templating function. In our case we wish to ensure that entropy-sensitive inputs to cryptographic functions (sinks) can be
+traced back to a high-entropy source such as *nix's \texttt{/dev/urandom}.
 
 \subsection{$k$-safety properties}
+
+As opposed to a safety property of a program (for example, ``variable $x$ is always positive'' or ``pointer $p$ is never null''), which requires
+the absence of errors in a single program trace, a $k$-safety property of a program requires the absence of erroneous interactions between $k$
+traces of the same program \cite{sousa2016cartesian}. A program property such as symmetry is a $2$-safety property.
+
+
+\subsection{Predicate Abstraction}
+
+Predicate abstraction is a specialized form of abstract interpretation that can be used for checking $1$-safety properties of programs
+\cite{flanagan2002predicate}.
+
 
 \subsection{Product Programs}
 
 \section{Our Approach}
 
+Want to use differential view since we can get more out of this. Unsound taint analysis example.
+
+\subsection{Differential Taint Analysis}
+
+Description of differential taint analysis.
+
 \subsection{Instrumenting Programs for Predicate Abstraction}
+
+Description of instrumentation algorithm.
 
 \subsection{Naive Product Program Inference Rules}
 
+Description of product program inference rules approach.
+
+\begin{figure}
+    \label{fig:infrules1}
+    \caption{Basic Inference Rules}
+    \[
+		\begin{array}{c}
+			\infer[]{A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\ \\
+			\infer[]{S_1 \cross S_2 \leadsto P}{
+				S_2 \cross S_1 \leadsto P
+			}
+        \end{array}
+    \]
+\end{figure}
+
+\begin{figure}
+    \label{fig:infrules2}
+    \caption{Conditional and Loop Inference Rules}
+    \[
+		\begin{array}{c}
+			\infer[]{if(p)\ then\ S_1\ else\ S_2 \cross S \leadsto P}{
+				\text{$S_1 \cross S \leadsto S_1'$} \\
+				\text{$S_2 \cross S \leadsto S_2'$} \\
+				\text{$P = if(p)\ then\ S_1'\ else\ S_2'$}
+			} \\ \\ \\
+			\infer[]{while(p_1)\ S_1 \cross while(p_2)\ S_2 \leadsto P_0\ ;\ P_1\ ;\ P_2}{
+				\text{$P_0 = while(p_1 \land p_2)\ S_1\ ;\ S_2$} \\
+				\text{$P_1 = while(p_1)\ S_1$} \\
+				\text{$P_2 = while(p_2)\ S_2$}
+			}
+        \end{array}
+    \]
+\end{figure}
+
 \subsection{Taint-augmented Inference Rules}
+
+Why the naive approach doesn't work (intractability). Introduce heuristic-based approach.
+
+\begin{figure}
+    \label{fig:auginfrules1}
+    \caption{Augmented Inference Rules}
+    \[
+		\begin{array}{c}
+			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto S_1\ ;\ S_2}{
+				\Gamma \nvdash S_1 \\
+				\Gamma \nvdash S_2
+			} \\
+		\end{array}
+    \]
+\end{figure}
+
+\begin{figure}
+    \label{fig:auginfrules2}
+    \caption{Augmented Inference Rules}
+    \[
+		\begin{array}{c}
+			\infer[]{\Gamma \vdash A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\ \\
+			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto P}{
+				\Gamma \vdash S_2 \cross S_1 \leadsto P
+			} \\ \\ \\
+			\infer[]{\Gamma \vdash if(p)\ then\ S_1\ else\ S_2 \cross S \leadsto P}{
+				\text{$\Gamma \vdash S_1 \cross S \leadsto S_1'$} \\
+				\text{$\Gamma \vdash S_2 \cross S \leadsto S_2'$} \\
+				\text{$P = if(p)\ then\ S_1'\ else\ S_2'$}
+			} \\ \\ \\
+			\infer[]{\Gamma \vdash while(p_1)\ S_1 \cross while(p_2)\ S_2 \leadsto P_0\ ;\ P_1\ ;\ P_2}{
+				\text{$P_0 = while(p_1 \land p_2)\ S_1\ ;\ S_2$} \\
+				\text{$P_1 = while(p_1)\ S_1$} \\
+				\text{$P_2 = while(p_2)\ S_2$}
+			}
+		\end{array}
+    \]
+\end{figure}
 
 \subsection{Putting it all together}
 
-\section{Results}
+Description of algorithm using the two subroutines above.
+
+\section{Evaluation}
 
 \section{Conclusion}
 
+In this work we present a new static analysis technique to aid in the prevention of entropy-misuse security vulnerabilities, such as those
+found in the Debian OpenSSL and FreeBSD projects.
+
 \section{Future Work}
+
+Verify the following conjectures. Prove that a heuristic-based approach is no less powerful than a full product program approach.
+Run this tool on projects in the wild to determine how widespread entropy-misuse bugs are among software projects ``in the wild.''
 
 \section{Considered Approaches}
 
