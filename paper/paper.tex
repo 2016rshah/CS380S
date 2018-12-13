@@ -225,7 +225,7 @@ Our solution proceeds in three primary stages:
 \begin{itemize}
     \item \textbf{Instrumentation:} In this step we reduce our taint analysis problem for each program version $P_1$ and $P_2$ to one of $2$-safety.
     Additionally, we run taint analysis on each program to get outputs $\Gamma_1$ and $\Gamma_2$, which we use in the next step.
-    \item \textbf{Program syncronization:} Using our environment $\Gamma = \Gamma_1 \cup \Gamma_2$, our instrumented programs $P'_1$ and $P'_2$ from 
+    \item \textbf{Program synchronization:} Using our environment $\Gamma = \Gamma_1 \cup \Gamma_2$, our instrumented programs $P'_1$ and $P'_2$ from 
     the previous step, we construct the product program $P'_1 \times P'_2$. This converts the $2$-safety problem to one of $1$-safety.
     \item \textbf{Verification:} Finally, we pass $P'_1 \times P'_2$ to an off-the-shelf verifier to check the $1$-safety property to
     prove security.
@@ -252,18 +252,8 @@ We describe these in more formal detail in the coming sections.
 
 	% Notice that if $x, y$ are both sufficiently entropic values then $x + y$ is also sufficiently entropic because the audition does not remove the entropy. Therefore addition is replaced with the $\textsf{preserving}$ function call. Contrast this with the left-shift, for example, which will remove entropy from the value. 
 
+    % TODO: talk about what makes us say some functions are preserving and some are not
 
-	% The next step involves collecting static information about the program that will help us apply our inference rules. Namely, we will populate the environment $\Gamma$ such that 
-	
-
-
-
-  %   \item Replace sources with labelled constants
-  %   \item For values that are tainted by more than one source (for example $S_1 + S_2$) replace with one of two uninterpreted functions over the sources: \begin{enumerate}
-		% \item $\textsf{preserving}(s_1, s_2, \ldots, s_n)$. Ex: $+, \oplus$
-		% \item $\textsf{non-preserving}(s_1, s_2, \ldots, s_n)$. Ex: $<<, >>$
-  %   \end{enumerate}
-  %   \item Perform taint analysis on sources to generate environment $\Gamma$ which marks statements involving tainted variables.
 \textbf{Instrumentation:} Given two program versions $P_1$ and $P_2$, our sources $\Sigma$, and a taint analysis algorithm $\mathsf{Taint}_{S,L}$
      we reduce the taint analysis problem to one of $1$-safety.
     We do this for each $P_k$ by assigning constants $c$ to all sources $\sigma \in \Sigma$, and then where we would propagate taint using the rules $S$ for language $L$
