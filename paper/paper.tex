@@ -81,8 +81,8 @@ Differential assertion checking, verification modulo versions, relational verifi
 We will build our tool for a language consisting of a small set of semantic rules (Figure \ref{fig:semrules}).
 
 \begin{figure}
-\label{fig:semrules}
 \caption{}
+\label{fig:semrules}
 \[
 	\begin{array}{l l c l}
 		\emph{Statement} & S & := & 
@@ -169,8 +169,8 @@ input to a cryptographic algorithm. Consider the program in Figure
 \ref{fig:prog1}. The variable $k$ is tainted with high-entropy, but will not contain high-entropy if $f()$ ever evaluates to false.
 
 \begin{figure}
-    \label{fig:prog1}
     \caption{Taint analysis overapproximation}
+    \label{fig:prog1}
     \begin{center}
     \begin{algorithmic}
         
@@ -198,8 +198,8 @@ are equal, however, simply comparing for equality here is \emph{unsound} with re
 in which the first program is secure, all similar program traces in the second program are insecure.
 
 \begin{figure}
-    \label{fig:prog2}
     \caption{Taint analysis unsoundness}
+    \label{fig:prog2}
     \begin{center}
     \begin{algorithmic}
         \If {$f()$}
@@ -248,8 +248,8 @@ Description of instrumentation algorithm.
 Description of product program inference rules approach.
 
 \begin{figure}
-    \label{fig:infrules1}
     \caption{Basic Inference Rules}
+    \label{fig:infrules1}
     \[
 		\begin{array}{c}
 			\infer[]{A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\ \\
@@ -261,8 +261,8 @@ Description of product program inference rules approach.
 \end{figure}
 
 \begin{figure}
-    \label{fig:infrules2}
     \caption{Conditional and Loop Inference Rules}
+    \label{fig:infrules2}
     \[
 		\begin{array}{c}
 			\infer[]{if(p)\ then\ S_1\ else\ S_2 \cross S \leadsto P}{
@@ -284,8 +284,8 @@ Description of product program inference rules approach.
 Why the naive approach doesn't work (intractability). Introduce heuristic-based approach.
 
 \begin{figure}
-    \label{fig:auginfrules1}
     \caption{Augmented Inference Rules}
+    \label{fig:auginfrules1}
     \[
 		\begin{array}{c}
 			\infer[]{\Gamma \vdash S_1 \cross S_2 \leadsto S_1\ ;\ S_2}{
@@ -297,8 +297,8 @@ Why the naive approach doesn't work (intractability). Introduce heuristic-based 
 \end{figure}
 
 \begin{figure}
-    \label{fig:auginfrules2}
     \caption{Augmented Inference Rules}
+    \label{fig:auginfrules2}
     \[
 		\begin{array}{c}
 			\infer[]{\Gamma \vdash A_1 \cross A_2 \leadsto A_1\ ;\ A_2}{} \\ \\ \\
