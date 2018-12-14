@@ -57,7 +57,14 @@
 \maketitle
 
 \begin{abstract}
- Test abstract
+    In this work we examine the problem of entropy misuse vulnerabilities in
+    security-critical software. Our work approaches the problem from an
+    ``ounce of prevention is worth a pound of cure'' perspective; by introducing
+    and applying a novel static analysis technique \emph{differential taint analysis},
+    we propose a method for catching these bugs. Our approach
+    leverages modern software development's
+     common practice of maintaining software version history to 
+     provide augmented heuristics to standard static analysis tools.
 \end{abstract}
 
 \section{Introduction}
@@ -127,14 +134,15 @@ traces of the same program \cite{sousa2016cartesian}. A program property such as
 
 
 \subsection{Predicate Abstraction}
+\label{sec:predabstraction}
 
 Predicate abstraction is a specialized form of abstract interpretation that can be used for checking $1$-safety properties of programs
 \cite{flanagan2002predicate}. Abstract interpretation is a static analysis technique for programs that allows a verifier to, in some cases, 
 automatically infer properties such as loop invariants. Formally we have:
 
 \begin{itemize}
-    \item $b \gets \mathsf{Verify}_{L}(\pi, P)$: Takes as input a $1$-safety property $\pi$ and a program $P$ and outputs an accepting bit $\top$ if
-    $P$ satisfies the safety property, and otherwise outputs a rejecting bit $\bot$ or fails to terminate otherwise.
+    \item $b \gets \mathsf{Verify}_{L}(\Pi, P)$: Takes as input a set $\Pi$ of $1$-safety properties and a program $P$ and outputs an accepting bit $\top$ if
+    $P$ satisfies all $\pi \in \Pi$, and otherwise outputs a rejecting bit $\bot$ or fails to terminate otherwise.
 \end{itemize}
 
 CPAchecker \cite{beyer2011cpachecker} is an example of a state-of-the-art predicate abstraction verifier for the C programming language. In this work
@@ -281,7 +289,8 @@ Formally, we propose the following algorithm:
 We only consider operations known to preserve entropy such as addition (for example: over some modulus, like $\oplus$, or adding signed fixed-length integers, or arbitrary-precision) for inclusion in set $\Delta$.
 Other operations, like bit-shifts, must be excluded from $\Delta$ to preserve security.
 
-\subsection{Naive Product Program Inference Rules}
+\subsection{Basic Product Program Inference Rules}
+\label{sec:basicpprules}
 
 With the instrumented programs, we can construct a product program that is semantically equivalent to the sequential composition of the two programs. However, we would like this product program to be more amenable to reason about for the static analysis tool. To this end, we would like to synchronize the control flow of the two programs as much as possible. 
 
@@ -403,10 +412,18 @@ But instead, we could synchronize the if statements with the if-statement infere
 Clearly Algorithm \ref{alg:cross} is twice as long because we replicated $P2$ into both branches of the if-statement. However this is a tradeoff we may be willing to make in order to ease the burden on our predicate abstraction tool as compared to Algorithm \ref{alg:seq}.
 
 \subsection{Taint-augmented Inference Rules}
+\label{sec:augpprules}
 
 We conjecture that the exponential blowup introduced by the naive inference rules is avoidable in some cases. In particular, our key insight is that we don't need the extra proving power provided by the synchronization in parts of the program that are unrelated to entropy. For these program statements, we can resort to the sequential composition. For example, consider a large software program: only a small portion of the code base will be related to the entropy. Therefore, we should concentrate the bulk of our analysis on this small portion of the code. 
 
 We define these ``unrelated'' statements to be the ones that are not tainted by any legitimate entropy source. This is reasonable because our ultimate assertions we would like to prove will only be over the tainted variables. Thus, we can use the $\Gamma$ environment we constructed in the instrumentation step to augment our inference rules. We say that $\Gamma \vdash S$ if some variable referenced in $S$ is tainted by at least one legitimate source of entropy. Similarly, $\Gamma \nvdash S$ if no variable in the statement is tainted by any legitimate source of entropy. We introduce an optimization inference rule that does not lead to any exponential blowup for statements that are not entailed by $\Gamma$. See \ref{fig:auginfrules1}.
+
+Formally, we define the following algorithm:
+
+\begin{itemize}
+    \item $P_1 \times P_2 \gets \mathsf{Prod}_R(P_1, P_2, \Gamma)$: Given two programs $P_1$ and $P_2$, a taint environment (mapping of program statements) to 
+    taint values), and a set of inference rules $R$ we output the product program $P_1 \times P_2$.
+\end{itemize}
 
 \begin{figure}
     \caption{Augmented Inference Rules}
@@ -455,7 +472,25 @@ Then, we can make the corresponding changes to our naive inference rules to reco
 
 \subsection{Putting it all together}
 
-Description of algorithm using the two subroutines above.
+Let $\Delta$ be some set of entropy-preserving operations in our language $L$ with some set of 
+natural taint propagation rules $S$.
+Let $R$ be our set of inference rules described in Sections \ref{sec:basicpprules} and \ref{sec:augpprules}.
+Using the subroutines we described above and the verification method in Section
+\ref{sec:predabstraction}, we have the following algorithm:
+
+\begin{itemize}
+    \item $b \gets \mathsf{DifferentialTaintAnalysis}_\Delta(P_1, P_2, \Sigma, Z)$: We take 
+    as input two programs $P_1$ and $P_2$, a set of sources $\Sigma$, and a set of 
+    sinks $Z$. We then compute:
+    \begin{itemize}
+        \item $(\Gamma_1, P_1') \gets \mathsf{Instrument}(P_1, \mathsf{Taint}_{S,L}, \Sigma, \Delta)$
+        \item $(\Gamma_2, P_2') \gets \mathsf{Instrument}(P_2, \mathsf{Taint}_{S,L}, \Sigma, \Delta)$
+        \item $P'_1 \times P'_2 \gets \mathsf{Prod}_R(P'_1, P'_2, \Gamma_1 \cup \Gamma_2)$
+    \end{itemize}
+    At each synchronized sink pair $(\zeta_1, \zeta_2) \in Z$ in $P'_1 \times P'_2$, add an assertion of equality 
+    $(\zeta_1 = \zeta_2)$ to a set of safety properties $\Pi$. Then compute $b \gets \mathsf{Verify}_{L}(\Pi, P'_1 \times P'_2)$
+    and output $b$.
+\end{itemize}
 
 \section{Evaluation}
 \label{sec:eval}
@@ -469,8 +504,16 @@ found in the Debian OpenSSL and FreeBSD projects.
 
 \section{Future Work}
 
-Verify the following conjectures. Prove that a heuristic-based approach is no less powerful than a full product program approach.
-Run this tool on projects in the wild to determine how widespread entropy-misuse bugs are among software projects ``in the wild.''
+In continuing this work, we would like to pursue a couple main lines of inquiries:
+
+\begin{itemize}
+    \item We wish to see how much our taint-augmented inference rules aid the verifier, from an experimental perspective on large projects such as OpenSSL.
+    \item We wish to prove that our taint-augmented inferences rules (or some superset of them) are ``just as useful'' as the basic rules (that is,
+    our verifier does not lose any information from using the scoped-down rules).
+    \item We want a formal reduction between a notion of differential taint analysis and the approach described here.
+    \item Create a push-button software solution for large projects, suitable for insertion in a continuous integration development cycle.
+    \item Take an at-large survey of open-source software for entropy misuse vulnerabilities.
+\end{itemize}
 
 {\normalsize \bibliographystyle{acm}
 \bibliography{refs}}
