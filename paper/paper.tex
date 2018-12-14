@@ -62,39 +62,26 @@
     ``ounce of prevention is worth a pound of cure'' perspective; by introducing
     and applying a novel static analysis technique \emph{differential taint analysis},
     we propose a method for catching these bugs. Our approach
-    leverages modern software development's
-     common practice of maintaining software version history to 
-     provide augmented heuristics to standard static analysis tools.
+    leverages the widespread practice of maintaining software version history for
+    modern software projects in order to
+     provide augmented heuristics to standard static analysis tools to prove the correctness of
+     subsequent versions of programs relative to the correctness of an original version.
+     Our contributions include the introduction of differential taint analysis
+     as a novel approach to this problem domain, as well as a construction to solve
+     the differential taint analysis problem using a reduction to standard static
+     analysis techniques.
 \end{abstract}
 
 \section{Introduction}
 
-One common misuse of cryptography is the misuse of entropy. Without proper random inputs, many cryptographic algorithms
-are vulnerable to basic forms of cryptanalysis. Some cryptographic schemes, such as DSA, can even disclose long-term secrets
-such as the signing key when the random per-message input is low entropy, made public, or nonunique.
+One common misuse of cryptography is the misuse of entropy. Without properly random inputs, many cryptographic schemes
+are vulnerable to basic forms of cryptanalysis. Some cryptographic algorithms, such as DSA, can even disclose long-term secrets
+such as the signing key when the random per-message input is low entropy, made public, or nonunique. Such frailty implies that
+proper entropy use is a necessary requirement for secure systems.
 
-We plan to use data dependency tools to determine how entropic inputs in a given program are used by various cryptographic algorithms. That will allow us to identify if and when entropy is too low or is misused. We plan to produce this as a code integration tool for developers to use as part of a compiler toolchain.
-Our tool will seek to generate an error report from source code using notions of taint analysis. 
+Detecting this class of bug often requires an examination of the source code; 
+issues where outputs from cryptographic algorithms are completely deterministic
 
-For this project we consider codebases that maintain version history, in the hopes that we can employ static analysis techniques across program versions to infer more information about how entropy is being used; 
-our primary goal is to identify bugs that are introduced to existing codebases. This may prove to be especially helpful since naive taint analysis can provide mere overapproximations of data dependency for a given program and may generate many false alarms for programmers in a professional development setting.
-
-\subsection{Related Work}
-
-\subsubsection{Differential assertion checking}
-
-This paper generates relative specifications between multiple versions of the program, much in the same way we generate the relative specification between the taintsets of variables that flow into sinks. However, the differential assertion checking paper focuses on managing the number of warnings emitted by static analysis programs by using the correctness of previous versions to silence errors. In contrast, our approach aims to surface an entirely new class of warnings. See \cite{lahiri2013differential}.
-
-\subsubsection{Secure information flow as a safety problem}
-This paper explores the notion of applying type information of low-security types and high-security types to guide the inference rules in the construction of product programs. It paints a traditional 2-safety property of secure information flow as a 1-safety property by constructing the product program. Rather than using multiple versions of the same program like our approach, this paper explores the self-composition of one program, which is especially helpful for synchronizing statements when reducing from a 2-safety property. See  \cite{terauchi2005secure}.
-
-\subsubsection{Relational verification using product programs}
-
-This paper explores the inference rules needed to construct product programs for relational verification. Primarily, the inference rules synchronize loops in an effort to simplify the process of problems like inferring loop invariants to optimize the loops. Our work builds on this work by introducing the notion of using taint analysis environment to guide the inference rules. See \cite{barthe2011relational}.
-
-\subsubsection{Verification modulo versions}
-
-This paper leverages the multiple versions of a program to tackle the problem of spurious warnings in a sound way. It speaks to a larger trend of the hypothesis that multiple versions of a program generated in the software development lifecycle today can be capitalized by the static analysis community. See \cite{logozzo2014verification}.
 
 
 \section{Preliminaries}
@@ -142,7 +129,8 @@ traced back to a high-entropy source such as *nix's \texttt{/dev/urandom}.
 
 As opposed to a safety property of a program (for example, ``variable $x$ is always positive'' or ``pointer $p$ is never null''), which requires
 the absence of errors in a single program trace \cite{alpern1987recognizing}, a $k$-safety property of a program requires the absence of erroneous interactions between $k$
-traces of the same program \cite{sousa2016cartesian}. A program property such as symmetry is a $2$-safety property.
+traces of the same program or single traces of $k$ different programs \cite{sousa2016cartesian}. A program property such as symmetry is a $2$-safety property. In the context of this
+work we only consider $2$-safety properties.
 
 
 \subsection{Predicate Abstraction}
@@ -507,25 +495,44 @@ Using the subroutines we described above and the verification method in Section
 \section{Evaluation}
 \label{sec:eval}
 
-% TODO
+\section{Related Work}
 
-\section{Conclusion}
+In this section we explore a few other results in the area of differential or relational program verification.
 
-In this work we present a new static analysis technique to aid in the prevention of entropy-misuse security vulnerabilities, such as those
-found in the Debian OpenSSL and FreeBSD projects.
+\subsection{Differential assertion checking}
+
+This paper generates relative specifications between multiple versions of the program, much in the same way we generate the relative specification between the taintsets of variables that flow into sinks. However, the differential assertion checking paper focuses on managing the number of warnings emitted by static analysis programs by using the correctness of previous versions to silence errors. In contrast, our approach aims to surface an entirely new class of warnings. See \cite{lahiri2013differential}.
+
+\subsection{Secure information flow as a safety problem}
+This paper explores the notion of applying type information of low-security types and high-security types to guide the inference rules in the construction of product programs. It paints a traditional 2-safety property of secure information flow as a 1-safety property by constructing the product program. Rather than using multiple versions of the same program like our approach, this paper explores the self-composition of one program, which is especially helpful for synchronizing statements when reducing from a 2-safety property. See  \cite{terauchi2005secure}.
+
+\subsection{Relational verification using product programs}
+
+This paper explores the inference rules needed to construct product programs for relational verification. Primarily, the inference rules synchronize loops in an effort to simplify the process of problems like inferring loop invariants to optimize the loops. Our work builds on this work by introducing the notion of using taint analysis environment to guide the inference rules. See \cite{barthe2011relational}.
+
+\subsection{Verification modulo versions}
+
+This paper leverages the multiple versions of a program to tackle the problem of spurious warnings in a sound way. It speaks to a larger trend of the hypothesis that multiple versions of a program generated in the software development lifecycle today can be capitalized by the static analysis community. See \cite{logozzo2014verification}.
+
 
 \section{Future Work}
 
-In continuing this work, we would like to pursue a couple main lines of inquiries:
+In continuing this work, we would like to pursue a couple of different lines of inquiries:
 
 \begin{itemize}
-    \item We wish to see how much our taint-augmented inference rules aid the verifier, from an experimental perspective on large projects such as OpenSSL.
+    \item How much do our taint-augmented inference rules aid the verifier, from an experimental perspective on large projects such as OpenSSL?
     \item We wish to prove that our taint-augmented inferences rules (or some superset of them) are ``just as useful'' as the basic rules (that is,
     our verifier does not lose any information from using the scoped-down rules).
     \item We want a formal reduction between a notion of differential taint analysis and the approach described here.
     \item Create a push-button software solution for large projects, suitable for insertion in a continuous integration development cycle.
     \item Take an at-large survey of open-source software for entropy misuse vulnerabilities.
+    \item What other security-related applications does differential taint analysis have?
 \end{itemize}
+
+\section{Conclusion}
+
+In this work we present a new static analysis technique to aid in the prevention of entropy-misuse security vulnerabilities, such as those
+found in the Debian OpenSSL and FreeBSD projects.
 
 {\normalsize \bibliographystyle{acm}
 \bibliography{refs}}
