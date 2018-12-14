@@ -77,10 +77,38 @@
 One common misuse of cryptography is the misuse of entropy. Without properly random inputs, many cryptographic schemes
 are vulnerable to basic forms of cryptanalysis. Some cryptographic algorithms, such as DSA, can even disclose long-term secrets
 such as the signing key when the random per-message input is low entropy, made public, or nonunique. Such frailty implies that
-proper entropy use is a necessary requirement for secure systems.
+proper entropy use is a necessary requirement for secure systems. These bugs have appeared
+in widely-used software projects. We briefly discuss two historical examples.
+
+\subsection{Debian OpenSSL}
+
+\cite{schneier2008}
+
+\subsection{FreeBSD}
+
+\cite{hovav2016}
+
+\subsection{Approaches}
 
 Detecting this class of bug often requires an examination of the source code; 
-issues where outputs from cryptographic algorithms are completely deterministic
+bugs that lead to completely deterministic outputs
+ from cryptographic algorithms can often be caught easily during the manual
+ testing of code before it is released. Issues which persist past release
+ typically result from low-entropy inputs rather than no-entropy inputs.
+ As such, these bugs can be difficult to discover and track down. One solution
+ to this problem, manual auditing, does work (historically, a manual
+ inspection of source code is how these vulnerabilities are disclosed and fixed).
+ However effective, manual audits can be an expensive solution, and altogether 
+ infeasible
+ for many projects to do often, especially those reliant on community donations and gratis
+ developer work. On the other hand, static analysis tools have their own issues:
+ due to classic hardness results, static analysis algorithms must rely on heuristic
+ methods and often cannot provide the sufficient guarantees to developers, even
+ if they admit soundness for all of their results.
+ 
+ \subsection{Contributions}
+
+
 
 
 
