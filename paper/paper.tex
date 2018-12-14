@@ -74,6 +74,8 @@ our primary goal is to identify bugs that are introduced to existing codebases. 
 
 \subsection{Related Work}
 
+Verification modulo version \cite{logozzo2014verification}.
+
 Differential assertion checking, verification modulo versions, relational verification using product programs, secure information flow as a safety problem
 
 \section{Preliminaries}
@@ -465,10 +467,13 @@ Description of algorithm using the two subroutines above.
 In this work we present a new static analysis technique to aid in the prevention of entropy-misuse security vulnerabilities, such as those
 found in the Debian OpenSSL and FreeBSD projects.
 
-% \section{Future Work}
+\section{Future Work}
 
-% Verify the following conjectures. Prove that a heuristic-based approach is no less powerful than a full product program approach.
-% Run this tool on projects in the wild to determine how widespread entropy-misuse bugs are among software projects ``in the wild.''
+Verify the following conjectures. Prove that a heuristic-based approach is no less powerful than a full product program approach.
+Run this tool on projects in the wild to determine how widespread entropy-misuse bugs are among software projects ``in the wild.''
+
+{\normalsize \bibliographystyle{acm}
+\bibliography{refs}}
 
 % \section{Considered Approaches}
 
@@ -522,48 +527,46 @@ found in the Debian OpenSSL and FreeBSD projects.
 % Finally, even with a sufficiently precise taint analysis, it is unclear how to determine the ``correct'' set of sources a cryptographic value should rely on at any point in the program. For example, some programs will use weak entropy on system startup, and increase the entropy in those values, later on. Thus, by running our analysis on two versions of the program, we can use one version as an oracle for the correctness criteria of the other program. In other words, we can use it to infer what the set of taint results should be for any variable at any point in the program.  
 
 
-\section{Links}
+% \section{Links}
 
-\begin{enumerate}
-	\item Debian/OpenSSL Bug 
-		\begin{enumerate}
-			\item \url{https://www.schneier.com/blog/archives/2008/05/random_number_b.html}
-			\item \url{https://research.swtch.com/openssl}
-			\item \url{https://freedom-to-tinker.com/2013/09/20/software-transparency-debian-openssl-bug/}
-			\item \url{https://www.cs.umd.edu/class/fall2017/cmsc818O/papers/private-keys-public.pdf}
-		\end{enumerate}
-	\item Data flow
-		\begin{enumerate}
-			\item \url{https://en.wikipedia.org/wiki/Data-flow_analysis}
-			\item \url{https://www.seas.harvard.edu/courses/cs252/2011sp/slides/Lec02-Dataflow.pdf}
-		\end{enumerate}
-	\item Static Program Analysis
-		\begin{enumerate}
-            \item \url{https://cs.au.dk/~amoeller/spa/spa.pdf}
-            \item \url{https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=6859783}
-		\end{enumerate}
-	\item Relational Verification:
-		\begin{enumerate}
-			\item \url{https://dl.acm.org/citation.cfm?id=2021319}
-			\item \url{https://ac.els-cdn.com/S235222081630044X/1-s2.0-S235222081630044X-main.pdf?_tid=076a0492-9cee-4995-9710-bcb3c64b98e0&acdnat=1539815890_178849b4f14af3751e9acb03b238db4d}
-			\item \url{https://www.microsoft.com/en-us/research/publication/differential-assertion-checking/}
-			\item \url{https://www.microsoft.com/en-us/research/wp-content/uploads/2014/06/paper-1.pdf}
-			\item \url{https://www.cs.utexas.edu/~isil/pldi16-chl.pdf}
-		\end{enumerate}
-	\item Projects to analyze 
-		\begin{enumerate}
-			\item OpenPGP
-			\item BouncyCastle
-			\item OpenSSL
-			\item GnuPGP
-			\item F\# SSL project with proof of correctness
-			\item NQSBTLS
-			\item Amazon's s2n (signal to noise)
-		\end{enumerate}
-\end{enumerate}
+% \begin{enumerate}
+% 	\item Debian/OpenSSL Bug 
+% 		\begin{enumerate}
+% 			\item \url{https://www.schneier.com/blog/archives/2008/05/random_number_b.html}
+% 			\item \url{https://research.swtch.com/openssl}
+% 			\item \url{https://freedom-to-tinker.com/2013/09/20/software-transparency-debian-openssl-bug/}
+% 			\item \url{https://www.cs.umd.edu/class/fall2017/cmsc818O/papers/private-keys-public.pdf}
+% 		\end{enumerate}
+% 	\item Data flow
+% 		\begin{enumerate}
+% 			\item \url{https://en.wikipedia.org/wiki/Data-flow_analysis}
+% 			\item \url{https://www.seas.harvard.edu/courses/cs252/2011sp/slides/Lec02-Dataflow.pdf}
+% 		\end{enumerate}
+% 	\item Static Program Analysis
+% 		\begin{enumerate}
+%             \item \url{https://cs.au.dk/~amoeller/spa/spa.pdf}
+%             \item \url{https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=6859783}
+% 		\end{enumerate}
+% 	\item Relational Verification:
+% 		\begin{enumerate}
+% 			\item \url{https://dl.acm.org/citation.cfm?id=2021319}
+% 			\item \url{https://ac.els-cdn.com/S235222081630044X/1-s2.0-S235222081630044X-main.pdf?_tid=076a0492-9cee-4995-9710-bcb3c64b98e0&acdnat=1539815890_178849b4f14af3751e9acb03b238db4d}
+% 			\item \url{https://www.microsoft.com/en-us/research/publication/differential-assertion-checking/}
+% 			\item \url{https://www.microsoft.com/en-us/research/wp-content/uploads/2014/06/paper-1.pdf}
+% 			\item \url{https://www.cs.utexas.edu/~isil/pldi16-chl.pdf}
+% 		\end{enumerate}
+% 	\item Projects to analyze 
+% 		\begin{enumerate}
+% 			\item OpenPGP
+% 			\item BouncyCastle
+% 			\item OpenSSL
+% 			\item GnuPGP
+% 			\item F\# SSL project with proof of correctness
+% 			\item NQSBTLS
+% 			\item Amazon's s2n (signal to noise)
+% 		\end{enumerate}
+% \end{enumerate}
 
-{\normalsize \bibliographystyle{acm}
-\bibliography{refs}}
 
 % We have two motivating examples. First, we would like our tool to be able to detect the issue with the Debian/OpenSSL pseudo-random number generator that was exposed in 2008. 
 % Second, we would like to identify potential vulnerabilities in current cryptocurrency wallet code as many cryptocurrency protocols rely on DSA.
