@@ -268,7 +268,7 @@ Description of instrumentation algorithm.
 
 With the instrumented programs, we can construct a product program that is semantically equivalent to the sequential composition of the two programs. However, we would like this product program to be more amenable to reason about for the static analysis tool. To this end, we would like to synchronize the control flow of the two programs as much as possible. 
 
-We present inference rules for composing statements in the two programs $S_1 \cross S_1$ into one program that is semantically equivalent to $S_1\ ;\ S_2$. The most basic inference rule simply involves sequentially composing two atomic statements, which do not involve any control flow to be syncrhonized. Also, because the variables in the two versions of the program have been renamed to be disjoint, we can introduce an inference rule for the commutativity of two statements.  
+We present inference rules for composing statements in the two programs $S_1 \cross S_1$ into one program that is semantically equivalent to $S_1\ ;\ S_2$. The most basic inference rule simply involves sequentially composing two atomic statements, which do not involve any control flow to be syncrhonized. Also, because the variables in the two versions of the program have been renamed to be disjoint, we can introduce an inference rule for the commutativity of two statements. See Figure \ref{fig:infrules1}.
 
 \begin{figure}
     \caption{Basic Inference Rules}
@@ -283,9 +283,9 @@ We present inference rules for composing statements in the two programs $S_1 \cr
     \]
 \end{figure}
 
-Next, we have the inference rule for synchronizing an if-statement with another statement. If $S_1$ is the taken branch, $S_2$ is the not-taken branch, and $S$ is the statement after the entire if-else-statement, then we would like to inject $S$ separately into each branch. This simple transformation is clearly equivalent to the sequential composition of the if-statement and $S$. The benefit of this transformation, however, is that the predicate abstraction tool has more information about the trace taken with which it can reason about product program. 
+Next, we have the inference rule for synchronizing an if-statement with another statement. If $S_1$ is the taken branch, $S_2$ is the not-taken branch, and $S$ is the statement after the entire if-else-statement, then we would like to inject $S$ separately into each branch. This simple transformation is clearly equivalent to the sequential composition of the if-statement and $S$. The benefit of this transformation, however, is that the predicate abstraction tool has more information about the trace taken with which it can reason about product program. See \ref{fig:infrules2}.
 
-Finally, we have the inference rule for synchronizing two while loops. The intuition here is that we would like the two loops to operate in lock-step as long as possible. To maintain the equivalence with the sequential composition, we also run the remaining iterations in the leftover loop after the other loop's condition no longer holds.
+Finally, we have the inference rule for synchronizing two while loops. The intuition here is that we would like the two loops to operate in lock-step as long as possible. To maintain the equivalence with the sequential composition, we also run the remaining iterations in the leftover loop after the other loop's condition no longer holds. See \ref{fig:infrules2}.
 
 \begin{figure}
     \caption{Conditional and Loop Inference Rules}
@@ -308,11 +308,88 @@ Finally, we have the inference rule for synchronizing two while loops. The intui
 
 Although these inference rules are semantically equivalent to the sequential composition, and clearly provide benefit to CPAChecker, this proving strength comes at a cost. Namely, the if statements and the while loops lead to an exponential blowup in the size of the product program being reasoned about as a result of the copied statements. 
 
+To demonstrate the application of these inference rules we will work an example. Consider the following two programs: Algorithm \ref{alg:p1} and \ref{alg:p2}.
+
+\begin{algorithm}
+  \caption{$P1$}
+  \label{alg:p1}
+  \begin{algorithmic}[1]
+    \If {$p$}
+        \State $x_1 \gets 1$
+    \Else
+        \State $x_1 \gets 2$
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+and
+
+\begin{algorithm}
+  \caption{$P1$}
+  \label{alg:p2}
+  \begin{algorithmic}[1]
+    \If {$p$}
+        \State $x_1 \gets 2$
+    \Else
+        \State $x_1 \gets 1$
+    \EndIf
+  \end{algorithmic}
+\end{algorithm}
+
+These programs just switch the bodies of the if and else branches (so they are clearly not equivalent). 
+
+Sequentially composed, we could imagine passing the following program to CPAChecker: Algorithm \ref{alg:seq}.
+
+\begin{algorithm}
+  \caption{$P1; P2$}
+  \label{alg:seq}
+  \begin{algorithmic}[1]
+    \If {$p$}
+        \State $x_1 \gets 1$
+    \Else
+        \State $x_1 \gets 2$
+    \EndIf
+    \If {$p$}
+        \State $x_1 \gets 2$
+    \Else
+        \State $x_1 \gets 1$
+    \EndIf
+    \State \textsf{assert}$(x_1 == x_2)$
+  \end{algorithmic}
+\end{algorithm}
+
+But instead, we could synchronize the if statements with the if-statement inference rule to yield: Algorithm \ref{alg:cross}.
+
+\begin{algorithm}
+  \caption{$P1{} \cross P2$}
+  \label{alg:cross}
+  \begin{algorithmic}[1]
+    \If {$p$}
+        \State $x_1 \gets 1$
+        \If {$p$}
+            \State $x_1 \gets 2$
+        \Else
+            \State $x_1 \gets 1$
+        \EndIf
+    \Else
+        \State $x_1 \gets 2$
+        \If {$p$}
+            \State $x_1 \gets 2$
+        \Else
+            \State $x_1 \gets 1$
+        \EndIf
+    \EndIf
+    \State \textsf{assert}$(x_1 == x_2)$
+  \end{algorithmic}
+\end{algorithm}
+
+Clearly Algorithm \ref{alg:cross} is twice as long because we replicated $P2$ into both branches of the if-statement. However this is a tradeoff we may be willing to make in order to ease the burden on our predicate abstraction tool as compared to Algorithm \ref{alg:seq}.
+
 \subsection{Taint-augmented Inference Rules}
 
 We conjecture that the exponential blowup introduced by the naive inference rules is avoidable in some cases. In particular, our key insight is that we don't need the extra proving power provided by the synchronization in parts of the program that are unrelated to entropy. For these program statements, we can resort to the sequential composition. For example, consider a large software program: only a small portion of the code base will be related to the entropy. Therefore, we should concentrate the bulk of our analysis on this small portion of the code. 
 
-We define these ``unrelated'' statements to be the ones that are not tainted by any legitimate entropy source. This is reasonable because our ultimate assertions we would like to prove will only be over the tainted variables. Thus, we can use the $\Gamma$ environment we constructed in the instrumentation step to augment our inference rules. We say that $\Gamma \vdash S$ if some variable referenced in $S$ is tainted by at least one legitimate source of entropy. Similarly, $\Gamma \nvdash S$ if no variable in the statement is tainted by any legitimate source of entropy. We introduce an optimization inference rule that does not lead to any exponential blowup for statements that are not entailed by $\Gamma$. 
+We define these ``unrelated'' statements to be the ones that are not tainted by any legitimate entropy source. This is reasonable because our ultimate assertions we would like to prove will only be over the tainted variables. Thus, we can use the $\Gamma$ environment we constructed in the instrumentation step to augment our inference rules. We say that $\Gamma \vdash S$ if some variable referenced in $S$ is tainted by at least one legitimate source of entropy. Similarly, $\Gamma \nvdash S$ if no variable in the statement is tainted by any legitimate source of entropy. We introduce an optimization inference rule that does not lead to any exponential blowup for statements that are not entailed by $\Gamma$. See \ref{fig:auginfrules1}.
 
 \begin{figure}
     \caption{Augmented Inference Rules}
@@ -327,7 +404,7 @@ We define these ``unrelated'' statements to be the ones that are not tainted by 
     \]
 \end{figure}
 
-Then, we can make the corresponsding changes to our naive inference rules to recognize the $\Gamma$ environment we've introduced. This gives us the following set of augmented inference rules: % TODO: reference to figure
+Then, we can make the corresponding changes to our naive inference rules to recognize the $\Gamma$ environment we've introduced. This gives us the following set of augmented inference rules: See Figure \ref{fig:auginfrules2}.
 
 \begin{figure}
     \caption{Augmented Inference Rules}
