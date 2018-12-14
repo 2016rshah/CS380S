@@ -483,6 +483,7 @@ Then, we can make the corresponding changes to our naive inference rules to reco
 % TODO: Notice that this optimization is only a heuristic. % (taint analysis isn't sufficient given the code snippet Isil mentioned). 
 
 \subsection{Putting it all together}
+\label{sec:all-together}
 
 Let $\Delta$ be some set of entropy-preserving operations in our language $L$ with some set of 
 natural taint propagation rules $S$.
@@ -507,7 +508,13 @@ Using the subroutines we described above and the verification method in Section
 \section{Evaluation}
 \label{sec:eval}
 
-% TODO
+To evaluate the algorithm laid out in Section \ref{sec:all-together}, we utilized an off-the-shelf state-of-the-art predicate abstraction tool called CPAChecker \cite{beyer2011cpachecker}. This tool was selected because it was the winner in SV-COMP'18, the Competition on Software Verification. 
+
+We demonstrated the motivating examples by writing a simple C program for each one and introducing entropy bugs to demonstrate possible issues. We selected C because most entropy bugs like the OpenSSL bug and the FreeBSD bug were implemented in systems level code written in C. Then, we instrumented these programs by replacing the sources and propagating them appropriately. After applying the inference rules to the composition of the original program and the buggy program, we ended up with a synchronized product program. We also applied the inference rules on the self-composition of the program to demonstrate version changes that don't introduce bugs that should be verified. The necessary assertions were inserted at the sinks after the product program was constructed.
+
+By plugging these product programs into CPAChecker we were able to get the desired verification results. CPAChecker was able to successfully verify the correct changes and successfully fail on the incorrect changes. 
+
+Note that our motivating examples were small and simple. Thus, the augmented inference rules evaluated to the same result as the naive inference rules. Our evaluation code snippets were correctly solved by CPAChecker in every variation of our inference rules: the sequential composition, the synchronized composition, and the augmented composition. Further evaluation is needed to confirm or reject our conjectures about the scalability of the various approaches in the design space and to explore the impact of our augmented inferene rules.
 
 \section{Conclusion}
 
