@@ -81,9 +81,21 @@ our primary goal is to identify bugs that are introduced to existing codebases. 
 
 \subsection{Related Work}
 
-Verification modulo version \cite{logozzo2014verification}.
+\subsubsection{Differential assertion checking}
 
-Differential assertion checking, verification modulo versions, relational verification using product programs, secure information flow as a safety problem
+This paper generates relative specifications between multiple versions of the program, much in the same way we generate the relative specification between the taintsets of variables that flow into sinks. However, the differential assertion checking paper focuses on managing the number of warnings emitted by static analysis programs by using the correctness of previous versions to silence errors. In contrast, our approach aims to surface an entirely new class of warnings. See \cite{lahiri2013differential}.
+
+\subsubsection{Secure information flow as a safety problem}
+This paper explores the notion of applying type information of low-security types and high-security types to guide the inference rules in the construction of product programs. It paints a traditional 2-safety property of secure information flow as a 1-safety property by constructing the product program. Rather than using multiple versions of the same program like our approach, this paper explores the self-composition of one program, which is especially helpful for synchronizing statements when reducing from a 2-safety property. See  \cite{terauchi2005secure}.
+
+\subsubsection{Relational verification using product programs}
+
+This paper explores the inference rules needed to construct product programs for relational verification. Primarily, the inference rules synchronize loops in an effort to simplify the process of problems like inferring loop invariants to optimize the loops. Our work builds on this work by introducing the notion of using taint analysis environment to guide the inference rules. See \cite{barthe2011relational}.
+
+\subsubsection{Verification modulo versions}
+
+This paper leverages the multiple versions of a program to tackle the problem of spurious warnings in a sound way. It speaks to a larger trend of the hypothesis that multiple versions of a program generated in the software development lifecycle today can be capitalized by the static analysis community. See \cite{logozzo2014verification}.
+
 
 \section{Preliminaries}
 
