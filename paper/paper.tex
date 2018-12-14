@@ -568,8 +568,11 @@ In continuing this work, we would like to pursue a couple of different lines of 
 
 \section{Conclusion}
 
-In this work we present a new static analysis technique to aid in the prevention of entropy-misuse security vulnerabilities, such as those
-found in the Debian OpenSSL and FreeBSD projects.
+In this work we explored solutions to the entropy vulnerabilities in large software projects. This was motivated by real-world entropy propagation failures found in the Debian OpenSSL project from 2008 and the FreeBSD project from 2016. Our primary contribution was proposing a novel technique for the relational verification of new versions of a program modulo the audited program. 
+
+Our proposed solution blends taint analysis with relational verification to control the tractability of the safety analysis task. The algorithm proceeds in three primary steps: instrumenting the project, constructing the product program, and inserting assertions/verifying with off-the-shelf static analysis tools. These steps implement two reductions: the instrumentation step converts the original taint analysis problem into a 2-safety property, and the product program construction converts the 2-safety property into a 1-safety property that can be statically verified after insertions are injected in the final step. These constructed product programs were evaluated with an off-the-shelf static analysis tool called CPAChecker.
+
+Three options are explored for the construction of the product program to sufficiently consider the tradeoff between ease of reasoning for the predicate abstraction tool and the potential for exponential blowup in the size of the product program. A hybrid is suggested that leverages the domain specific knowledge of entropy-tainted variables to find a suitable middle ground. The initial results presented in this paper represent a promising opportunity for future work.  
 
 {\normalsize \bibliographystyle{acm}
 \bibliography{refs}}
