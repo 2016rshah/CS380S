@@ -106,7 +106,7 @@ Taint analysis is a standard program analysis technique, typically used to detec
 We restrict our focus to the static variant. We define a taint analysis algorithm as follows:
 
 \begin{itemize}
-    \item $\Gamma \gets \mathsf{Taint}_{S,L}(\phi, T, \Sigma, Z, P)$: Takes as input an initial assignment $\phi$ of some taint sets $T = \{\tau_i\}$ to 
+    \item $\Gamma \gets \mathsf{Taint}_{S,L}(\phi, T, \Sigma, P)$: Takes as input an initial assignment $\phi$ of some taint sets $T = \{\tau_i\}$ to 
     a set of sources $\Sigma = \{\sigma_i\}$, and an input program $P$. Outputs an 
     assignment $\Gamma$ of statements $s_i$ in the program $P$ to taint sets $\tau_i \in T$ according to the taint propagation semantics $S$ for programming
     language $L$.
@@ -216,7 +216,15 @@ in which the first program is secure, all similar program traces in the second p
 
 \subsection{Differential Taint Analysis}
 
-Description of differential taint analysis.
+In this section, we introduce the notion of \emph{differential taint analysis}.
+We consider two programs $P_1$ and $P_2$ with shared
+source set $\Sigma$, taint set $T$, and sink set $Z$, and source-taint mapping $\phi$. 
+A differential taint analysis algorithm
+should accept only if for every program trace $\sigma_1$ and $\sigma_2$ of $P_1$
+and $P_2$, respectively, on the same input $\vec{x}$ the taint set for all sinks
+$\zeta_1 \in Z$ in $P_1$ are equal to the taint set for all sinks $\zeta_2 \in Z$ in $P_2$.
+This notion is meant to capture the idea that if $P_1$ has all correct program traces,
+$P_2$ will as well.
 
 \subsection{Overview}
 
@@ -237,13 +245,13 @@ We describe these in more formal detail in the coming sections.
 
 	% Take C/C++ project and turn it into our IR. 
 
-	In the instrumentation phase, we take an entire software project, and augment it with the other inputs (like annotations) to prepare it for the static analysis we will perform. Ultimately, our goal is to make assertions about the taintsets of program variables at the sinks. But first, we will individually instrument each version of the software project.
+	In the instrumentation phase, we take an entire software project, and augment it with the other inputs (like annotations) to prepare it for the static analysis we will perform. Ultimately, our goal is to make assertions about the taintsets of program variables at the sinks. But first we will individually instrument each version of the software project.
 
 	First we transform the code from its existing state into the language whose semantics we described earlier. We also rename the variables in the second version of the program so their names are disjoint from the variable names in program one. Then, in both programs, we replace the legitimate sources of entropy with labelled constants. We propogate these labelled constants through the program to propagate the taint of the entropy. In the process of doing so, it is possible that a value is tainted by more than one source (which is why we are tracking the taintset). We replace statements that taint a value with two or more sources ($s_1, s_2, \ldots, s_n$) with one of two uninterpreted functions: 
 
 	\begin{enumerate}
-		\item $\textsf{preserving}(s_1, s_2, \ldots, s_n)$ if the operation preserves entropy (+, XOR, etc.)
-		\item $\textsf{non-preserving}(s_1, s_2, \ldots, s_n)$ if the operation does not preserve entropy (<<, >>, etc.)
+		\item $\textsf{preserving}(s_1, s_2, \ldots, s_n)$ if the operation preserves entropy 
+		\item $\textsf{non-preserving}(s_1, s_2, \ldots, s_n)$ if the operation does not preserve entropy 
 	\end{enumerate}
 
 	These uninterpreted functions are inferred to be pure functions over their variables, so they capture the notion of the taintset at that point. This allows us to assert their equality in the program we pass to CPAChecker. 
@@ -252,17 +260,24 @@ We describe these in more formal detail in the coming sections.
 
 	% Notice that if $x, y$ are both sufficiently entropic values then $x + y$ is also sufficiently entropic because the audition does not remove the entropy. Therefore addition is replaced with the $\textsf{preserving}$ function call. Contrast this with the left-shift, for example, which will remove entropy from the value. 
 
-    % TODO: talk about what makes us say some functions are preserving and some are not
+Formally, we propose the following algorithm:
 
-\textbf{Instrumentation:} Given two program versions $P_1$ and $P_2$, our sources $\Sigma$, and a taint analysis algorithm $\mathsf{Taint}_{S,L}$
-     we reduce the taint analysis problem to one of $1$-safety.
-    We do this for each $P_k$ by assigning constants $c$ to all sources $\sigma \in \Sigma$, and then where we would propagate taint using the rules $S$ for language $L$
-    in statements $s_i$ which is a function of program variables $v_i$ and only of ``entropy preserving" operations (described below) 
-    we replace with an uninterpreted function $f(v_1, \ldots, v_j)$. For statements $s'_i$ which are a
-    function of any tainted program variables $w_j$ and contain any ``non-entropy preserving operations'' (any operations that are not entropy preserving), we replace
-    with an uninterpreted function $g(w_1, \ldots, w_j)$. We output these programs as $P'_1$ and $P'_2$.
+\begin{itemize}
+    \item $(\Gamma, P') \gets \mathsf{Instrument}(P, \mathsf{Taint}_{S,L}, \Sigma, \Delta)$: Given a program $P$, a taint analysis subroutine $\mathsf{Taint}_{S,L}$, a set
+    of sources $\Sigma$, and a set of entropy-preserving operations $\Delta \subseteq \mathsf{Ops}$, we create a new program $P'$ in the following way. First,
+    we compute $\Gamma \gets \mathsf{Taint}_{S,L}(\phi, \{\top\}, \Sigma, P)$ where $\phi$ is the membership function of $\Sigma$. Then:
+    \begin{itemize}
+        \item For each source $\sigma \in \Sigma$, replace with a labelled constant $c$.
+        \item For all variables $x_i$ which are an assignment of a sequence of program variables $v_i$ and combined by operations $\odot \in \mathsf{Ops}$,
+        if any $v_i$ is tainted and all operations are in $\Delta$ then assign $x_i$ to an uninterpreted function $\textsf{preserving}(v_1, \ldots, v_j)$. If
+        any $v_i$ is tainted but one operations is not in $\Delta$, then assign $x_i$ to an uninterpreted function $\textsf{non-preserving}(v_1, \ldots, v_j)$.
+        Otherwise, do nothing.
+    \end{itemize}
+    Output $\Gamma$ and $P'$.
+\end{itemize}
 
-Description of instrumentation algorithm.
+We only consider operations known to preserve entropy such as addition (for example: over some modulus, like $\oplus$, or adding signed fixed-length integers, or arbitrary-precision) for inclusion in set $\Delta$.
+Other operations, like bit-shifts, must be excluded from $\Delta$ to preserve security.
 
 \subsection{Naive Product Program Inference Rules}
 
