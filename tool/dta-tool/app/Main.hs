@@ -32,6 +32,11 @@ import Control.Monad
 type VarCount = (Int, Int)
 type Log = [String]
 
+data EntropicDependency =
+    Preserving |
+    Nonpreserving |
+    NoDependency
+
 data InstrumentationState = IState 
     { 
         notes :: Log, 
@@ -96,11 +101,11 @@ main = do
                         (Left parseError) -> error "Parse error"
                         (Right newTranslUnit) -> newTranslUnit
         writeFile "globalDecls.hs" $ prettyAst newAst
-        -- printFormattedFilename fp 18
-        -- print $ pretty parsed
-        -- printFormattedFilename (fp ++ " Transformed") 12
-        -- print $ pretty newAst
-        -- print (pretty parsed == pretty newAst)
+        printFormattedFilename fp 18
+        print $ pretty parsed
+        printFormattedFilename (fp ++ " Transformed") 12
+        print $ pretty newAst
+        print (pretty parsed == pretty newAst)
     where
         prettyAst ast@(CTranslUnit ed ni) = ppShow ed
         printFormattedFilename fp n = do
@@ -130,8 +135,6 @@ instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_b
     defineParams node_info decl
     -- record parameters
     items' <- mapM (instrumentBlockItem [FunCtx decl]) items
-    log $ map (show . pretty) items
-    log $ map (show . pretty) items'
     leaveFunctionScope
     return $ CCompound localLabels items' node_info_body
 instrumentFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
@@ -155,10 +158,21 @@ setStrConst _ _ = error "Tried to set str const to invalid declaration"
 
 instrumentDecl :: CDecl -> Trav InstrumentationState CDecl
 instrumentDecl s@CStaticAssert{} = return s
-instrumentDecl d@(CDecl typeSpecifier declr node_info) 
-    | isSource d = return $ setStrConst "TEST" d
-    | _ = return d
+instrumentDecl d@(CDecl typeSpecifier declr node_info) =
+    if isSource d then return $ setStrConst "SOURCE" d
+    else do
+        dependency <- dependencyOnSource d
+        case dependency of
+            Preserving -> return $ setStrConst "PRESERVING" d
+            Nonpreserving -> return $ setStrConst "NON-PRESERVING" d
+            _ -> return d
 
+dependencyOnSource :: CDecl -> Trav InstrumentationState EntropicDependency
+dependencyOnSource (CDecl [typeSpecifier] 
+                   [(Just declr, Just (CInitExpr expr node_info), size)] -- TODO: support for InitializerLists?
+                   node_info2) = return Preserving
+dependencyOnSource _ = return NoDependency
+    
 sources = ["foo", "bar"]
 
 isSource :: CDecl -> Bool
@@ -199,6 +213,13 @@ instrumentationDeclHandler (DeclEvent (FunctionDef f)) = do
     when b $ do
         f' <- instrumentFunction f
         addTransformedFn (f,f')
+        -- logPretty f'
+        let newFunDef = FunctionDef f'
+            FunDef (VarDecl vname _ _) _ _ = f' 
+            id = identOfVarName vname
+        withDefTable $ defineGlobalIdent id newFunDef
+        return ()
+
 -- instrumentationDeclHandler (LocalEvent (ObjectDef o)) = do
 --                                                             case getObjIdent o of
 --                                                                 Nothing -> return ()
