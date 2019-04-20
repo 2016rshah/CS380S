@@ -25,6 +25,7 @@ import Text.Show.Pretty
 import Text.PrettyPrint
 
 import Data.List
+import Data.Maybe 
 import Control.Monad
 
 -- import qualified Data.Map.Lazy as Map
@@ -40,18 +41,16 @@ data EntropicDependency =
 data InstrumentationState = IState 
     { 
         notes :: Log, 
-        source :: Maybe Ident,
+        sources :: [Ident],
         transformedFns :: [(FunDef, FunDef)],
         ast :: CTranslUnit
     }
 
 instance Show InstrumentationState where
     show is = "Log: " ++ show (notes is) ++ "\n\n" ++
-                "Source: " ++ showSource (source is) ++ "\n\n" ++
+                "Sources: " ++ show (map (show . pretty) (sources is)) ++ "\n\n" ++
                 "Transformed Functions: \n" ++ showFns (transformedFns is)
-        where showSource (Just x) = show $ pretty x
-              showSource Nothing = "No source specified"
-              showFns = concatMap (\(f, f') -> "\t" ++ (show . pretty) f ++ " -> " ++ (show . pretty) f' ++ "\n")
+        where showFns = concatMap (\(f, f') -> "\t" ++ (show . pretty) f ++ " -> " ++ (show . pretty) f' ++ "\n")
 
 instance Pretty Bool where
     pretty = text . show 
@@ -74,12 +73,15 @@ logPretty = modifyUserState . addPrettyToLog
 addTransformedFn :: (FunDef, FunDef) -> Trav InstrumentationState ()
 addTransformedFn f = modifyUserState $ \is -> is { transformedFns = transformedFns is ++ [f] }
 
+addToSources :: Ident -> Trav InstrumentationState ()
+addToSources s = modifyUserState $ \is -> is { sources = sources is ++ [s] }
+
 emptyInstState :: String -> InstrumentationState
 emptyInstState fileName = IState { 
                                     notes = [], 
                                     ast = CTranslUnit [] (OnlyPos pos (pos, 0)),
                                     transformedFns = [],
-                                    source = Nothing
+                                    sources = []
                                     }
     where pos = initialPos fileName 
 
@@ -150,7 +152,7 @@ setStrConst strConst (CDecl [typeSpecifier] [(Just declr, _, expr)] node_info) =
         typeSpecifier' = CTypeSpec (CCharType node_info)
         CDeclr id _ _ _ node_info2 = declr
         declr' = CDeclr id [CPtrDeclr [] node_info2] Nothing [] node_info2
-    in CDecl [typeSpecifier] [(Just declr', Just initlr, expr)] node_info
+    in CDecl [typeSpecifier'] [(Just declr', Just initlr, expr)] node_info
 setStrConst _ _ = error "Tried to set str const to invalid declaration"
 
 -- setStrConst [(Just x, Just (CInitExpr (CConst (CStrConst _ ni3)) ni4), e)] =
@@ -159,7 +161,14 @@ setStrConst _ _ = error "Tried to set str const to invalid declaration"
 instrumentDecl :: CDecl -> Trav InstrumentationState CDecl
 instrumentDecl s@CStaticAssert{} = return s
 instrumentDecl d@(CDecl typeSpecifier declr node_info) =
-    if isSource d then return $ setStrConst "SOURCE" d
+    if isSource d 
+    then do
+        case identOfDecl d of
+            Just id -> do
+                withDefTable $ defineLocalIdent id (ObjDef )
+                addToSources id
+            Nothing -> return ()
+        return $ setStrConst "SOURCE" d
     else do
         dependency <- dependencyOnSource d
         case dependency of
@@ -167,24 +176,32 @@ instrumentDecl d@(CDecl typeSpecifier declr node_info) =
             Nonpreserving -> return $ setStrConst "NON-PRESERVING" d
             _ -> return d
 
+annotatedSources = ["foo", "bar"]
+
+isSource :: CDecl -> Bool
+isSource d@(CDecl typeSpecifier declr node_info) =
+        case identOfDecl d of 
+            Just (Ident name _ _) -> name `elem` annotatedSources
+            Nothing               -> False
+isSource _ = False
+
 dependencyOnSource :: CDecl -> Trav InstrumentationState EntropicDependency
 dependencyOnSource (CDecl [typeSpecifier] 
                    [(Just declr, Just (CInitExpr expr node_info), size)] -- TODO: support for InitializerLists?
-                   node_info2) = return Preserving
+                   node_info2) = do
+                        dTable <- getDefTable
+                        st <- getUserState
+                        let currentSources = sources st
+                            lookupAll = mapMaybe ((`lookupIdent` dTable)) currentSources
+                        if null lookupAll 
+                        then return NoDependency 
+                        else return Preserving
 dependencyOnSource _ = return NoDependency
     
-sources = ["foo", "bar"]
-
-isSource :: CDecl -> Bool
-isSource (CDecl typeSpecifier declr node_info) =
-        case varName of
-            Just name -> name `elem` sources
-            Nothing   -> False
-    where varName =
-            case declr of
-                [(Just (CDeclr (Just (Ident name _ _)) _ _ _ _), _, _)] -> Just name
-                _ -> Nothing
-isSource _ = False
+identOfDecl :: CDecl -> Maybe Ident
+identOfDecl (CDecl _ declr _) = case declr of
+                                    [(Just (CDeclr (Just id) _ _ _ _), _, _)] -> Just id
+                                    _ -> Nothing
 
 
  -- copied
