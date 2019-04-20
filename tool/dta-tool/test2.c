@@ -4,10 +4,13 @@ int main(int argc, char** argv) {
     char** foo = t;
     char* bar = *t;
     if (t == "qwer") {
+        *t = "1234";
         return 1;
     } else if (t == "jklo") {
+        *bar = "dfgh";
         return 0;
     } else {
+        **foo = "xcvvcbn";
         return 2;
     }
     for (int i = 0; i < 10; i++) {
@@ -19,6 +22,10 @@ int main(int argc, char** argv) {
         k++;
         *t = "jkl;";
     }
+}
+
+char* g() {
+    return "preservational";
 }
 
 void f() {

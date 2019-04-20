@@ -95,7 +95,7 @@ main = do
         let f (Left pr) = error $ show pr
             f (Right pr) = pr
             parsed@(CTranslUnit ed ni) = f parseResult
-            g (Left err) = error "Traversal error"
+            g (Left err) = error $ "Traversal error: " ++ show err
             g (Right (result, state)) = (result, userState state)
             (traversalResult, traversalState) = g $ runTrav (emptyInstState fp) $ instrumentationTraversal parsed
         print traversalState
@@ -136,7 +136,7 @@ instrumentExt (CFDefExt fundef) = if shouldInstrumentFunction fundef
                                   else analyseFunDef fundef
 instrumentExt (CDeclExt decl) = analyseDecl False decl
 
-instrumentedFunctions = ["main"]
+instrumentedFunctions = ["main", "g"]
 
 shouldInstrumentFunction :: CFunDef -> Bool
 shouldInstrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = 
@@ -215,7 +215,36 @@ instrumentStmt c s@(CExpr expr node) =
         Just e -> do
             expr' <- instrumentExpr c RValue e
             return $ CExpr (Just expr') node
+instrumentStmt c (CCompound localLabels blocks node) = do
+    blocks' <- mapM (instrumentBlockItem []) blocks
+    return $ CCompound localLabels blocks' node
+instrumentStmt c (CWhile guard body isDoWhile node) = do
+    guard' <- instrumentExpr c RValue guard
+    body' <- instrumentStmt c body
+    return $ CWhile guard' body' isDoWhile node
+instrumentStmt c (CIf ifExpr thenStmt maybeElse node) = do
+    ifExpr' <- instrumentExpr c RValue ifExpr
+    thenStmt' <- instrumentStmt c thenStmt
+    maybeElse' <- maybe (return Nothing) (\x -> Just <$> instrumentStmt c x) maybeElse
+    return $ CIf ifExpr' thenStmt' maybeElse' node
+instrumentStmt c (CFor init expr2 expr3 stmt node) = do
+    let mkExpr  e = Left <$> mkMaybeExpr c e
+        mkDeclr d = Right <$> instrumentDecl True d
+    init' <- either mkExpr mkDeclr init
+    expr2' <- mkMaybeExpr c expr2
+    expr3' <- mkMaybeExpr c expr3
+    stmt' <- instrumentStmt c stmt
+    return $ CFor init' expr2' expr3' stmt' node
+instrumentStmt c (CReturn expr node) = do
+    expr' <- mkMaybeExpr c expr
+    return $ CReturn expr' node
+instrumentStmt _ CSwitch{} = error "Case statements not supported yet"
+instrumentStmt _ CCase{} = error "Case statements not supported yet"
+instrumentStmt _ CCases{} = error "Case statements not supported yet"
+instrumentStmt _ CDefault{} = error "Case statements not supported yet"
 instrumentStmt _ s = return s
+
+mkMaybeExpr c = maybe (return Nothing) (\x -> Just <$> instrumentExpr c RValue x)
 
 instrumentExpr :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav CExpr
 instrumentExpr c _ expr@(CAssign op lhs rhs node) = do
@@ -226,6 +255,9 @@ instrumentExpr c _ expr@(CAssign op lhs rhs node) = do
     setIndirections var@(CVar id node) = CUnary CIndOp var node
     setIndirections (CUnary CIndOp expr node) = setIndirections expr
     setIndirections _ = error "Setting indirections failed"
+instrumentExpr c _ expr@(CConst (CStrConst s node)) = if getCString s == "preservational" 
+                                                 then return $ makeStrConst "PRESERVING_RETURN" expr
+                                                 else return expr
 instrumentExpr c side expr = return expr
 
 processRhs :: CExpr -> InstTrav CExpr
@@ -286,7 +318,6 @@ exprDependency expr = do
         if null lookupAll 
         then return NoDependency 
         else return Preserving
-exprDependency _ = return NoDependency
 
 declDependency :: CDecl -> InstTrav EntropicDependency
 declDependency decl@(CDecl [typeSpecifier] 

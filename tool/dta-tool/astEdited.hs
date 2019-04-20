@@ -360,24 +360,62 @@
                  (CCompound
                     []
                     [ CBlockStmt
+                        (CExpr
+                           (Just
+                              (CAssign
+                                 CAssignOp
+                                 (CUnary
+                                    CIndOp
+                                    (CVar
+                                       (Ident
+                                          "t"
+                                          116
+                                          (NodeInfo
+                                             ("test2.c" : line 7)
+                                             ( "test2.c" : line 7 , 1 )
+                                             Name { nameId = 49 }))
+                                       (NodeInfo
+                                          ("test2.c" : line 7)
+                                          ( "test2.c" : line 7 , 1 )
+                                          Name { nameId = 50 }))
+                                    (NodeInfo
+                                       ("test2.c" : line 7)
+                                       ( "test2.c" : line 7 , 1 )
+                                       Name { nameId = 51 }))
+                                 (CConst
+                                    (CStrConst
+                                       "1234"
+                                       (NodeInfo
+                                          ("test2.c" : line 7)
+                                          ( "test2.c" : line 7 , 6 )
+                                          Name { nameId = 52 })))
+                                 (NodeInfo
+                                    ("test2.c" : line 7)
+                                    ( "test2.c" : line 7 , 6 )
+                                    Name { nameId = 53 })))
+                           (NodeInfo
+                              ("test2.c" : line 7)
+                              ( "test2.c" : line 7 , 1 )
+                              Name { nameId = 54 }))
+                    , CBlockStmt
                         (CReturn
                            (Just
                               (CConst
                                  (CIntConst
                                     1
                                     (NodeInfo
-                                       ("test2.c" : line 7)
-                                       ( "test2.c" : line 7 , 1 )
-                                       Name { nameId = 49 }))))
+                                       ("test2.c" : line 8)
+                                       ( "test2.c" : line 8 , 1 )
+                                       Name { nameId = 55 }))))
                            (NodeInfo
-                              ("test2.c" : line 7)
-                              ( "test2.c" : line 7 , 1 )
-                              Name { nameId = 50 }))
+                              ("test2.c" : line 8)
+                              ( "test2.c" : line 8 , 1 )
+                              Name { nameId = 56 }))
                     ]
                     (NodeInfo
                        ("test2.c" : line 6)
-                       ( "test2.c" : line 8 , 1 )
-                       Name { nameId = 51 }))
+                       ( "test2.c" : line 9 , 1 )
+                       Name { nameId = 57 }))
                  (Just
                     (CIf
                        (CBinary
@@ -387,75 +425,157 @@
                                 "t"
                                 116
                                 (NodeInfo
-                                   ("test2.c" : line 8)
-                                   ( "test2.c" : line 8 , 1 )
-                                   Name { nameId = 52 }))
+                                   ("test2.c" : line 9)
+                                   ( "test2.c" : line 9 , 1 )
+                                   Name { nameId = 58 }))
                              (NodeInfo
-                                ("test2.c" : line 8)
-                                ( "test2.c" : line 8 , 1 )
-                                Name { nameId = 53 }))
+                                ("test2.c" : line 9)
+                                ( "test2.c" : line 9 , 1 )
+                                Name { nameId = 59 }))
                           (CConst
                              (CStrConst
                                 "jklo"
                                 (NodeInfo
-                                   ("test2.c" : line 8)
-                                   ( "test2.c" : line 8 , 6 )
-                                   Name { nameId = 54 })))
+                                   ("test2.c" : line 9)
+                                   ( "test2.c" : line 9 , 6 )
+                                   Name { nameId = 60 })))
                           (NodeInfo
-                             ("test2.c" : line 8)
-                             ( "test2.c" : line 8 , 6 )
-                             Name { nameId = 55 }))
+                             ("test2.c" : line 9)
+                             ( "test2.c" : line 9 , 6 )
+                             Name { nameId = 61 }))
                        (CCompound
                           []
                           [ CBlockStmt
+                              (CExpr
+                                 (Just
+                                    (CAssign
+                                       CAssignOp
+                                       (CUnary
+                                          CIndOp
+                                          (CVar
+                                             (Ident
+                                                "bar"
+                                                1880290
+                                                (NodeInfo
+                                                   ("test2.c" : line 10)
+                                                   ( "test2.c" : line 10 , 3 )
+                                                   Name { nameId = 62 }))
+                                             (NodeInfo
+                                                ("test2.c" : line 10)
+                                                ( "test2.c" : line 10 , 3 )
+                                                Name { nameId = 63 }))
+                                          (NodeInfo
+                                             ("test2.c" : line 10)
+                                             ( "test2.c" : line 10 , 3 )
+                                             Name { nameId = 64 }))
+                                       (CConst
+                                          (CStrConst
+                                             "dfgh"
+                                             (NodeInfo
+                                                ("test2.c" : line 10)
+                                                ( "test2.c" : line 10 , 6 )
+                                                Name { nameId = 65 })))
+                                       (NodeInfo
+                                          ("test2.c" : line 10)
+                                          ( "test2.c" : line 10 , 6 )
+                                          Name { nameId = 66 })))
+                                 (NodeInfo
+                                    ("test2.c" : line 10)
+                                    ( "test2.c" : line 10 , 1 )
+                                    Name { nameId = 67 }))
+                          , CBlockStmt
                               (CReturn
                                  (Just
                                     (CConst
                                        (CIntConst
                                           0
                                           (NodeInfo
-                                             ("test2.c" : line 9)
-                                             ( "test2.c" : line 9 , 1 )
-                                             Name { nameId = 56 }))))
+                                             ("test2.c" : line 11)
+                                             ( "test2.c" : line 11 , 1 )
+                                             Name { nameId = 68 }))))
                                  (NodeInfo
-                                    ("test2.c" : line 9)
-                                    ( "test2.c" : line 9 , 1 )
-                                    Name { nameId = 57 }))
+                                    ("test2.c" : line 11)
+                                    ( "test2.c" : line 11 , 1 )
+                                    Name { nameId = 69 }))
                           ]
                           (NodeInfo
-                             ("test2.c" : line 8)
-                             ( "test2.c" : line 10 , 1 )
-                             Name { nameId = 58 }))
+                             ("test2.c" : line 9)
+                             ( "test2.c" : line 12 , 1 )
+                             Name { nameId = 70 }))
                        (Just
                           (CCompound
                              []
                              [ CBlockStmt
+                                 (CExpr
+                                    (Just
+                                       (CAssign
+                                          CAssignOp
+                                          (CUnary
+                                             CIndOp
+                                             (CUnary
+                                                CIndOp
+                                                (CVar
+                                                   (Ident
+                                                      "foo"
+                                                      1832934
+                                                      (NodeInfo
+                                                         ("test2.c" : line 13)
+                                                         ( "test2.c" : line 13 , 3 )
+                                                         Name { nameId = 71 }))
+                                                   (NodeInfo
+                                                      ("test2.c" : line 13)
+                                                      ( "test2.c" : line 13 , 3 )
+                                                      Name { nameId = 72 }))
+                                                (NodeInfo
+                                                   ("test2.c" : line 13)
+                                                   ( "test2.c" : line 13 , 3 )
+                                                   Name { nameId = 73 }))
+                                             (NodeInfo
+                                                ("test2.c" : line 13)
+                                                ( "test2.c" : line 13 , 3 )
+                                                Name { nameId = 74 }))
+                                          (CConst
+                                             (CStrConst
+                                                "xcvvcbn"
+                                                (NodeInfo
+                                                   ("test2.c" : line 13)
+                                                   ( "test2.c" : line 13 , 9 )
+                                                   Name { nameId = 75 })))
+                                          (NodeInfo
+                                             ("test2.c" : line 13)
+                                             ( "test2.c" : line 13 , 9 )
+                                             Name { nameId = 76 })))
+                                    (NodeInfo
+                                       ("test2.c" : line 13)
+                                       ( "test2.c" : line 13 , 1 )
+                                       Name { nameId = 77 }))
+                             , CBlockStmt
                                  (CReturn
                                     (Just
                                        (CConst
                                           (CIntConst
                                              2
                                              (NodeInfo
-                                                ("test2.c" : line 11)
-                                                ( "test2.c" : line 11 , 1 )
-                                                Name { nameId = 59 }))))
+                                                ("test2.c" : line 14)
+                                                ( "test2.c" : line 14 , 1 )
+                                                Name { nameId = 78 }))))
                                     (NodeInfo
-                                       ("test2.c" : line 11)
-                                       ( "test2.c" : line 11 , 1 )
-                                       Name { nameId = 60 }))
+                                       ("test2.c" : line 14)
+                                       ( "test2.c" : line 14 , 1 )
+                                       Name { nameId = 79 }))
                              ]
                              (NodeInfo
-                                ("test2.c" : line 10)
-                                ( "test2.c" : line 12 , 1 )
-                                Name { nameId = 61 })))
+                                ("test2.c" : line 12)
+                                ( "test2.c" : line 15 , 1 )
+                                Name { nameId = 80 })))
                        (NodeInfo
-                          ("test2.c" : line 8)
-                          ( "test2.c" : line 12 , 1 )
-                          Name { nameId = 62 })))
+                          ("test2.c" : line 9)
+                          ( "test2.c" : line 15 , 1 )
+                          Name { nameId = 81 })))
                  (NodeInfo
                     ("test2.c" : line 6)
-                    ( "test2.c" : line 12 , 1 )
-                    Name { nameId = 63 }))
+                    ( "test2.c" : line 15 , 1 )
+                    Name { nameId = 82 }))
           , CBlockStmt
               (CFor
                  (Right
@@ -463,9 +583,9 @@
                        [ CTypeSpec
                            (CIntType
                               (NodeInfo
-                                 ("test2.c" : line 13)
-                                 ( "test2.c" : line 13 , 3 )
-                                 Name { nameId = 65 }))
+                                 ("test2.c" : line 16)
+                                 ( "test2.c" : line 16 , 3 )
+                                 Name { nameId = 84 }))
                        ]
                        [ ( Just
                              (CDeclr
@@ -474,36 +594,36 @@
                                       "i"
                                       105
                                       (NodeInfo
-                                         ("test2.c" : line 13)
-                                         ( "test2.c" : line 13 , 1 )
-                                         Name { nameId = 64 })))
+                                         ("test2.c" : line 16)
+                                         ( "test2.c" : line 16 , 1 )
+                                         Name { nameId = 83 })))
                                 []
                                 Nothing
                                 []
                                 (NodeInfo
-                                   ("test2.c" : line 13)
-                                   ( "test2.c" : line 13 , 1 )
-                                   Name { nameId = 66 }))
+                                   ("test2.c" : line 16)
+                                   ( "test2.c" : line 16 , 1 )
+                                   Name { nameId = 85 }))
                          , Just
                              (CInitExpr
                                 (CConst
                                    (CIntConst
                                       0
                                       (NodeInfo
-                                         ("test2.c" : line 13)
-                                         ( "test2.c" : line 13 , 1 )
-                                         Name { nameId = 67 })))
+                                         ("test2.c" : line 16)
+                                         ( "test2.c" : line 16 , 1 )
+                                         Name { nameId = 86 })))
                                 (NodeInfo
-                                   ("test2.c" : line 13)
-                                   ( "test2.c" : line 13 , 1 )
-                                   Name { nameId = 68 }))
+                                   ("test2.c" : line 16)
+                                   ( "test2.c" : line 16 , 1 )
+                                   Name { nameId = 87 }))
                          , Nothing
                          )
                        ]
                        (NodeInfo
-                          ("test2.c" : line 13)
-                          ( "test2.c" : line 13 , 1 )
-                          Name { nameId = 69 })))
+                          ("test2.c" : line 16)
+                          ( "test2.c" : line 16 , 1 )
+                          Name { nameId = 88 })))
                  (Just
                     (CBinary
                        CLeOp
@@ -512,24 +632,24 @@
                              "i"
                              105
                              (NodeInfo
-                                ("test2.c" : line 13)
-                                ( "test2.c" : line 13 , 1 )
-                                Name { nameId = 70 }))
+                                ("test2.c" : line 16)
+                                ( "test2.c" : line 16 , 1 )
+                                Name { nameId = 89 }))
                           (NodeInfo
-                             ("test2.c" : line 13)
-                             ( "test2.c" : line 13 , 1 )
-                             Name { nameId = 71 }))
+                             ("test2.c" : line 16)
+                             ( "test2.c" : line 16 , 1 )
+                             Name { nameId = 90 }))
                        (CConst
                           (CIntConst
                              10
                              (NodeInfo
-                                ("test2.c" : line 13)
-                                ( "test2.c" : line 13 , 2 )
-                                Name { nameId = 72 })))
+                                ("test2.c" : line 16)
+                                ( "test2.c" : line 16 , 2 )
+                                Name { nameId = 91 })))
                        (NodeInfo
-                          ("test2.c" : line 13)
-                          ( "test2.c" : line 13 , 2 )
-                          Name { nameId = 73 })))
+                          ("test2.c" : line 16)
+                          ( "test2.c" : line 16 , 2 )
+                          Name { nameId = 92 })))
                  (Just
                     (CUnary
                        CPostIncOp
@@ -538,17 +658,17 @@
                              "i"
                              105
                              (NodeInfo
-                                ("test2.c" : line 13)
-                                ( "test2.c" : line 13 , 1 )
-                                Name { nameId = 74 }))
+                                ("test2.c" : line 16)
+                                ( "test2.c" : line 16 , 1 )
+                                Name { nameId = 93 }))
                           (NodeInfo
-                             ("test2.c" : line 13)
-                             ( "test2.c" : line 13 , 1 )
-                             Name { nameId = 75 }))
+                             ("test2.c" : line 16)
+                             ( "test2.c" : line 16 , 1 )
+                             Name { nameId = 94 }))
                        (NodeInfo
-                          ("test2.c" : line 13)
-                          ( "test2.c" : line 13 , 2 )
-                          Name { nameId = 76 })))
+                          ("test2.c" : line 16)
+                          ( "test2.c" : line 16 , 2 )
+                          Name { nameId = 95 })))
                  (CCompound
                     []
                     [ CBlockStmt
@@ -563,49 +683,49 @@
                                           "t"
                                           116
                                           (NodeInfo
-                                             ("test2.c" : line 14)
-                                             ( "test2.c" : line 14 , 1 )
-                                             Name { nameId = 77 }))
+                                             ("test2.c" : line 17)
+                                             ( "test2.c" : line 17 , 1 )
+                                             Name { nameId = 96 }))
                                        (NodeInfo
-                                          ("test2.c" : line 14)
-                                          ( "test2.c" : line 14 , 1 )
-                                          Name { nameId = 78 }))
+                                          ("test2.c" : line 17)
+                                          ( "test2.c" : line 17 , 1 )
+                                          Name { nameId = 97 }))
                                     (NodeInfo
-                                       ("test2.c" : line 14)
-                                       ( "test2.c" : line 14 , 1 )
-                                       Name { nameId = 79 }))
+                                       ("test2.c" : line 17)
+                                       ( "test2.c" : line 17 , 1 )
+                                       Name { nameId = 98 }))
                                  (CConst
                                     (CStrConst
                                        "qwer"
                                        (NodeInfo
-                                          ("test2.c" : line 14)
-                                          ( "test2.c" : line 14 , 6 )
-                                          Name { nameId = 80 })))
+                                          ("test2.c" : line 17)
+                                          ( "test2.c" : line 17 , 6 )
+                                          Name { nameId = 99 })))
                                  (NodeInfo
-                                    ("test2.c" : line 14)
-                                    ( "test2.c" : line 14 , 6 )
-                                    Name { nameId = 81 })))
+                                    ("test2.c" : line 17)
+                                    ( "test2.c" : line 17 , 6 )
+                                    Name { nameId = 100 })))
                            (NodeInfo
-                              ("test2.c" : line 14)
-                              ( "test2.c" : line 14 , 1 )
-                              Name { nameId = 82 }))
+                              ("test2.c" : line 17)
+                              ( "test2.c" : line 17 , 1 )
+                              Name { nameId = 101 }))
                     ]
                     (NodeInfo
-                       ("test2.c" : line 13)
-                       ( "test2.c" : line 15 , 1 )
-                       Name { nameId = 83 }))
+                       ("test2.c" : line 16)
+                       ( "test2.c" : line 18 , 1 )
+                       Name { nameId = 102 }))
                  (NodeInfo
-                    ("test2.c" : line 13)
-                    ( "test2.c" : line 15 , 1 )
-                    Name { nameId = 84 }))
+                    ("test2.c" : line 16)
+                    ( "test2.c" : line 18 , 1 )
+                    Name { nameId = 103 }))
           , CBlockDecl
               (CDecl
                  [ CTypeSpec
                      (CIntType
                         (NodeInfo
-                           ("test2.c" : line 16)
-                           ( "test2.c" : line 16 , 3 )
-                           Name { nameId = 86 }))
+                           ("test2.c" : line 19)
+                           ( "test2.c" : line 19 , 3 )
+                           Name { nameId = 105 }))
                  ]
                  [ ( Just
                        (CDeclr
@@ -614,36 +734,36 @@
                                 "k"
                                 107
                                 (NodeInfo
-                                   ("test2.c" : line 16)
-                                   ( "test2.c" : line 16 , 1 )
-                                   Name { nameId = 85 })))
+                                   ("test2.c" : line 19)
+                                   ( "test2.c" : line 19 , 1 )
+                                   Name { nameId = 104 })))
                           []
                           Nothing
                           []
                           (NodeInfo
-                             ("test2.c" : line 16)
-                             ( "test2.c" : line 16 , 1 )
-                             Name { nameId = 87 }))
+                             ("test2.c" : line 19)
+                             ( "test2.c" : line 19 , 1 )
+                             Name { nameId = 106 }))
                    , Just
                        (CInitExpr
                           (CConst
                              (CIntConst
                                 0
                                 (NodeInfo
-                                   ("test2.c" : line 16)
-                                   ( "test2.c" : line 16 , 1 )
-                                   Name { nameId = 88 })))
+                                   ("test2.c" : line 19)
+                                   ( "test2.c" : line 19 , 1 )
+                                   Name { nameId = 107 })))
                           (NodeInfo
-                             ("test2.c" : line 16)
-                             ( "test2.c" : line 16 , 1 )
-                             Name { nameId = 89 }))
+                             ("test2.c" : line 19)
+                             ( "test2.c" : line 19 , 1 )
+                             Name { nameId = 108 }))
                    , Nothing
                    )
                  ]
                  (NodeInfo
-                    ("test2.c" : line 16)
-                    ( "test2.c" : line 16 , 1 )
-                    Name { nameId = 90 }))
+                    ("test2.c" : line 19)
+                    ( "test2.c" : line 19 , 1 )
+                    Name { nameId = 109 }))
           , CBlockStmt
               (CExpr
                  (Just
@@ -654,28 +774,28 @@
                              "k"
                              107
                              (NodeInfo
-                                ("test2.c" : line 17)
-                                ( "test2.c" : line 17 , 1 )
-                                Name { nameId = 91 }))
+                                ("test2.c" : line 20)
+                                ( "test2.c" : line 20 , 1 )
+                                Name { nameId = 110 }))
                           (NodeInfo
-                             ("test2.c" : line 17)
-                             ( "test2.c" : line 17 , 1 )
-                             Name { nameId = 92 }))
+                             ("test2.c" : line 20)
+                             ( "test2.c" : line 20 , 1 )
+                             Name { nameId = 111 }))
                        (CConst
                           (CIntConst
                              4
                              (NodeInfo
-                                ("test2.c" : line 17)
-                                ( "test2.c" : line 17 , 1 )
-                                Name { nameId = 93 })))
+                                ("test2.c" : line 20)
+                                ( "test2.c" : line 20 , 1 )
+                                Name { nameId = 112 })))
                        (NodeInfo
-                          ("test2.c" : line 17)
-                          ( "test2.c" : line 17 , 1 )
-                          Name { nameId = 94 })))
+                          ("test2.c" : line 20)
+                          ( "test2.c" : line 20 , 1 )
+                          Name { nameId = 113 })))
                  (NodeInfo
-                    ("test2.c" : line 17)
-                    ( "test2.c" : line 17 , 1 )
-                    Name { nameId = 95 }))
+                    ("test2.c" : line 20)
+                    ( "test2.c" : line 20 , 1 )
+                    Name { nameId = 114 }))
           , CBlockStmt
               (CWhile
                  (CBinary
@@ -685,24 +805,24 @@
                           "k"
                           107
                           (NodeInfo
-                             ("test2.c" : line 18)
-                             ( "test2.c" : line 18 , 1 )
-                             Name { nameId = 96 }))
+                             ("test2.c" : line 21)
+                             ( "test2.c" : line 21 , 1 )
+                             Name { nameId = 115 }))
                        (NodeInfo
-                          ("test2.c" : line 18)
-                          ( "test2.c" : line 18 , 1 )
-                          Name { nameId = 97 }))
+                          ("test2.c" : line 21)
+                          ( "test2.c" : line 21 , 1 )
+                          Name { nameId = 116 }))
                     (CConst
                        (CIntConst
                           10
                           (NodeInfo
-                             ("test2.c" : line 18)
-                             ( "test2.c" : line 18 , 2 )
-                             Name { nameId = 98 })))
+                             ("test2.c" : line 21)
+                             ( "test2.c" : line 21 , 2 )
+                             Name { nameId = 117 })))
                     (NodeInfo
-                       ("test2.c" : line 18)
-                       ( "test2.c" : line 18 , 2 )
-                       Name { nameId = 99 }))
+                       ("test2.c" : line 21)
+                       ( "test2.c" : line 21 , 2 )
+                       Name { nameId = 118 }))
                  (CCompound
                     []
                     [ CBlockStmt
@@ -715,21 +835,21 @@
                                        "k"
                                        107
                                        (NodeInfo
-                                          ("test2.c" : line 19)
-                                          ( "test2.c" : line 19 , 1 )
-                                          Name { nameId = 100 }))
+                                          ("test2.c" : line 22)
+                                          ( "test2.c" : line 22 , 1 )
+                                          Name { nameId = 119 }))
                                     (NodeInfo
-                                       ("test2.c" : line 19)
-                                       ( "test2.c" : line 19 , 1 )
-                                       Name { nameId = 101 }))
+                                       ("test2.c" : line 22)
+                                       ( "test2.c" : line 22 , 1 )
+                                       Name { nameId = 120 }))
                                  (NodeInfo
-                                    ("test2.c" : line 19)
-                                    ( "test2.c" : line 19 , 2 )
-                                    Name { nameId = 102 })))
+                                    ("test2.c" : line 22)
+                                    ( "test2.c" : line 22 , 2 )
+                                    Name { nameId = 121 })))
                            (NodeInfo
-                              ("test2.c" : line 19)
-                              ( "test2.c" : line 19 , 1 )
-                              Name { nameId = 103 }))
+                              ("test2.c" : line 22)
+                              ( "test2.c" : line 22 , 1 )
+                              Name { nameId = 122 }))
                     , CBlockStmt
                         (CExpr
                            (Just
@@ -742,59 +862,123 @@
                                           "t"
                                           116
                                           (NodeInfo
-                                             ("test2.c" : line 20)
-                                             ( "test2.c" : line 20 , 1 )
-                                             Name { nameId = 104 }))
+                                             ("test2.c" : line 23)
+                                             ( "test2.c" : line 23 , 1 )
+                                             Name { nameId = 123 }))
                                        (NodeInfo
-                                          ("test2.c" : line 20)
-                                          ( "test2.c" : line 20 , 1 )
-                                          Name { nameId = 105 }))
+                                          ("test2.c" : line 23)
+                                          ( "test2.c" : line 23 , 1 )
+                                          Name { nameId = 124 }))
                                     (NodeInfo
-                                       ("test2.c" : line 20)
-                                       ( "test2.c" : line 20 , 1 )
-                                       Name { nameId = 106 }))
+                                       ("test2.c" : line 23)
+                                       ( "test2.c" : line 23 , 1 )
+                                       Name { nameId = 125 }))
                                  (CConst
                                     (CStrConst
                                        "jkl;"
                                        (NodeInfo
-                                          ("test2.c" : line 20)
-                                          ( "test2.c" : line 20 , 6 )
-                                          Name { nameId = 107 })))
+                                          ("test2.c" : line 23)
+                                          ( "test2.c" : line 23 , 6 )
+                                          Name { nameId = 126 })))
                                  (NodeInfo
-                                    ("test2.c" : line 20)
-                                    ( "test2.c" : line 20 , 6 )
-                                    Name { nameId = 108 })))
+                                    ("test2.c" : line 23)
+                                    ( "test2.c" : line 23 , 6 )
+                                    Name { nameId = 127 })))
                            (NodeInfo
-                              ("test2.c" : line 20)
-                              ( "test2.c" : line 20 , 1 )
-                              Name { nameId = 109 }))
+                              ("test2.c" : line 23)
+                              ( "test2.c" : line 23 , 1 )
+                              Name { nameId = 128 }))
                     ]
                     (NodeInfo
-                       ("test2.c" : line 18)
-                       ( "test2.c" : line 21 , 1 )
-                       Name { nameId = 110 }))
+                       ("test2.c" : line 21)
+                       ( "test2.c" : line 24 , 1 )
+                       Name { nameId = 129 }))
                  False
                  (NodeInfo
-                    ("test2.c" : line 18)
-                    ( "test2.c" : line 21 , 1 )
-                    Name { nameId = 111 }))
+                    ("test2.c" : line 21)
+                    ( "test2.c" : line 24 , 1 )
+                    Name { nameId = 130 }))
           ]
           (NodeInfo
              ("test2.c" : line 1)
-             ( "test2.c" : line 22 , 1 )
-             Name { nameId = 112 }))
+             ( "test2.c" : line 25 , 1 )
+             Name { nameId = 131 }))
        (NodeInfo
           ("test2.c" : line 1)
-          ( "test2.c" : line 22 , 1 )
-          Name { nameId = 113 }))
+          ( "test2.c" : line 25 , 1 )
+          Name { nameId = 132 }))
+, CFDefExt
+    (CFunDef
+       [ CTypeSpec
+           (CCharType
+              (NodeInfo
+                 ("test2.c" : line 27)
+                 ( "test2.c" : line 27 , 4 )
+                 Name { nameId = 133 }))
+       ]
+       (CDeclr
+          (Just
+             (Ident
+                "g"
+                103
+                (NodeInfo
+                   ("test2.c" : line 27)
+                   ( "test2.c" : line 27 , 1 )
+                   Name { nameId = 134 })))
+          [ CFunDeclr
+              (Right ( [] , False ))
+              []
+              (NodeInfo
+                 ("test2.c" : line 27)
+                 ( "test2.c" : line 27 , 1 )
+                 Name { nameId = 136 })
+          , CPtrDeclr
+              []
+              (NodeInfo
+                 ("test2.c" : line 27)
+                 ( "test2.c" : line 27 , 1 )
+                 Name { nameId = 137 })
+          ]
+          Nothing
+          []
+          (NodeInfo
+             ("test2.c" : line 27)
+             ( "test2.c" : line 27 , 1 )
+             Name { nameId = 135 }))
+       []
+       (CCompound
+          []
+          [ CBlockStmt
+              (CReturn
+                 (Just
+                    (CConst
+                       (CStrConst
+                          "preservational"
+                          (NodeInfo
+                             ("test2.c" : line 28)
+                             ( "test2.c" : line 28 , 16 )
+                             Name { nameId = 138 }))))
+                 (NodeInfo
+                    ("test2.c" : line 28)
+                    ( "test2.c" : line 28 , 1 )
+                    Name { nameId = 139 }))
+          ]
+          (NodeInfo
+             ("test2.c" : line 27)
+             ( "test2.c" : line 29 , 1 )
+             Name { nameId = 140 }))
+       (NodeInfo
+          ("test2.c" : line 27)
+          ( "test2.c" : line 29 , 1 )
+          Name { nameId = 141 }))
 , CFDefExt
     (CFunDef
        [ CTypeSpec
            (CVoidType
               (NodeInfo
-                 ("test2.c" : line 24)
-                 ( "test2.c" : line 24 , 4 )
-                 Name { nameId = 115 }))
+                 ("test2.c" : line 31)
+                 ( "test2.c" : line 31 , 4 )
+                 Name { nameId = 143 }))
        ]
        (CDeclr
           (Just
@@ -802,23 +986,23 @@
                 "f"
                 102
                 (NodeInfo
-                   ("test2.c" : line 24)
-                   ( "test2.c" : line 24 , 1 )
-                   Name { nameId = 114 })))
+                   ("test2.c" : line 31)
+                   ( "test2.c" : line 31 , 1 )
+                   Name { nameId = 142 })))
           [ CFunDeclr
               (Right ( [] , False ))
               []
               (NodeInfo
-                 ("test2.c" : line 24)
-                 ( "test2.c" : line 24 , 1 )
-                 Name { nameId = 117 })
+                 ("test2.c" : line 31)
+                 ( "test2.c" : line 31 , 1 )
+                 Name { nameId = 145 })
           ]
           Nothing
           []
           (NodeInfo
-             ("test2.c" : line 24)
-             ( "test2.c" : line 24 , 1 )
-             Name { nameId = 116 }))
+             ("test2.c" : line 31)
+             ( "test2.c" : line 31 , 1 )
+             Name { nameId = 144 }))
        []
        (CCompound
           []
@@ -827,9 +1011,9 @@
                  [ CTypeSpec
                      (CIntType
                         (NodeInfo
-                           ("test2.c" : line 25)
-                           ( "test2.c" : line 25 , 3 )
-                           Name { nameId = 119 }))
+                           ("test2.c" : line 32)
+                           ( "test2.c" : line 32 , 3 )
+                           Name { nameId = 147 }))
                  ]
                  [ ( Just
                        (CDeclr
@@ -838,43 +1022,43 @@
                                 "testVar"
                                 247047114
                                 (NodeInfo
-                                   ("test2.c" : line 25)
-                                   ( "test2.c" : line 25 , 7 )
-                                   Name { nameId = 118 })))
+                                   ("test2.c" : line 32)
+                                   ( "test2.c" : line 32 , 7 )
+                                   Name { nameId = 146 })))
                           []
                           Nothing
                           []
                           (NodeInfo
-                             ("test2.c" : line 25)
-                             ( "test2.c" : line 25 , 7 )
-                             Name { nameId = 120 }))
+                             ("test2.c" : line 32)
+                             ( "test2.c" : line 32 , 7 )
+                             Name { nameId = 148 }))
                    , Just
                        (CInitExpr
                           (CConst
                              (CIntConst
                                 3
                                 (NodeInfo
-                                   ("test2.c" : line 25)
-                                   ( "test2.c" : line 25 , 1 )
-                                   Name { nameId = 121 })))
+                                   ("test2.c" : line 32)
+                                   ( "test2.c" : line 32 , 1 )
+                                   Name { nameId = 149 })))
                           (NodeInfo
-                             ("test2.c" : line 25)
-                             ( "test2.c" : line 25 , 1 )
-                             Name { nameId = 122 }))
+                             ("test2.c" : line 32)
+                             ( "test2.c" : line 32 , 1 )
+                             Name { nameId = 150 }))
                    , Nothing
                    )
                  ]
                  (NodeInfo
-                    ("test2.c" : line 25)
-                    ( "test2.c" : line 25 , 1 )
-                    Name { nameId = 123 }))
+                    ("test2.c" : line 32)
+                    ( "test2.c" : line 32 , 1 )
+                    Name { nameId = 151 }))
           ]
           (NodeInfo
-             ("test2.c" : line 24)
-             ( "test2.c" : line 26 , 1 )
-             Name { nameId = 124 }))
+             ("test2.c" : line 31)
+             ( "test2.c" : line 33 , 1 )
+             Name { nameId = 152 }))
        (NodeInfo
-          ("test2.c" : line 24)
-          ( "test2.c" : line 26 , 1 )
-          Name { nameId = 125 }))
+          ("test2.c" : line 31)
+          ( "test2.c" : line 33 , 1 )
+          Name { nameId = 153 }))
 ]
