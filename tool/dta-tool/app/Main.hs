@@ -4,6 +4,7 @@ import Prelude hiding (log)
 
 import Language.C
 import Language.C.Data.Ident
+import Language.C.Data.Node
 import Language.C.Data.Position
 import Language.C.Data.InputStream
 import Language.C.Syntax.AST
@@ -32,8 +33,10 @@ import Control.Monad
 
 type VarCount = (Int, Int)
 type Log = [String]
+type InstTrav = Trav InstrumentationState  
 
 data EntropicDependency =
+    Source |
     Preserving |
     Nonpreserving |
     NoDependency
@@ -64,16 +67,16 @@ addPrettyToLog o is = let lg = notes is ++ [show (pretty o)] in is { notes = lg 
 addToLog :: (Show a) => a -> InstrumentationState -> InstrumentationState
 addToLog o is = let lg = notes is ++ [show o] in is { notes = lg }
 
-log :: (Show a) => a -> Trav InstrumentationState ()
+log :: (Show a) => a -> InstTrav ()
 log = modifyUserState . addToLog
 
-logPretty :: (Pretty a) => a -> Trav InstrumentationState ()
+logPretty :: (Pretty a) => a -> InstTrav ()
 logPretty = modifyUserState . addPrettyToLog
 
-addTransformedFn :: (FunDef, FunDef) -> Trav InstrumentationState ()
+addTransformedFn :: (FunDef, FunDef) -> InstTrav ()
 addTransformedFn f = modifyUserState $ \is -> is { transformedFns = transformedFns is ++ [f] }
 
-addToSources :: Ident -> Trav InstrumentationState ()
+addToSources :: Ident -> InstTrav ()
 addToSources s = modifyUserState $ \is -> is { sources = sources is ++ [s] }
 
 emptyInstState :: String -> InstrumentationState
@@ -114,7 +117,7 @@ main = do
             putStrLn $ "|" ++ replicate (2 * n + length fp) '=' ++ "|"
 
 
-instrumentationTraversal :: CTranslUnit -> Trav InstrumentationState CTranslUnit
+instrumentationTraversal :: CTranslUnit -> InstTrav CTranslUnit
 instrumentationTraversal (CTranslUnit decls _file_node) = do
     -- instrument all declarations, but recover from errors
     mapRecoverM_ instrumentExt decls
@@ -126,7 +129,7 @@ instrumentationTraversal (CTranslUnit decls _file_node) = do
     where
     mapRecoverM_ f = mapM_ (handleTravError . f)
 
-instrumentExt :: CExtDecl -> Trav InstrumentationState ()
+instrumentExt :: CExtDecl -> InstTrav ()
 instrumentExt (CAsmExt asm _) = handleAsmBlock asm
 instrumentExt (CFDefExt fundef) = if shouldInstrumentFunction fundef 
                                   then void $ instrumentFunction fundef 
@@ -141,7 +144,7 @@ shouldInstrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info)
         (CDeclr (Just (Ident name _ _)) _ _ _ _) -> name `elem` instrumentedFunctions
         _                                        -> False
 
-instrumentFunction :: CFunDef -> Trav InstrumentationState CFunDef
+instrumentFunction :: CFunDef -> InstTrav CFunDef
 instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
     -- analyse the declarator
     var_decl_info <- analyseVarDecl' True declspecs declr oldstyle_decls Nothing
@@ -184,7 +187,7 @@ instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
                         $ "unexpected function storage specifier (only static or extern is allowed)" ++ show bad_spec
 
 
-instrumentFunctionBody :: NodeInfo -> VarDecl -> CStat -> Trav InstrumentationState Stmt
+instrumentFunctionBody :: NodeInfo -> VarDecl -> CStat -> InstTrav Stmt
 instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_body) =
     do 
         enterFunctionScope
@@ -196,7 +199,7 @@ instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_b
         return $ CCompound localLabels items' node_info_body
 instrumentFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
 
-instrumentBlockItem :: [StmtCtx] -> CBlockItem -> Trav InstrumentationState CBlockItem
+instrumentBlockItem :: [StmtCtx] -> CBlockItem -> InstTrav CBlockItem
 instrumentBlockItem _ (CBlockDecl d) = CBlockDecl <$> instrumentDecl True d 
 instrumentBlockItem _ (CNestedFunDef fundef) = 
     CNestedFunDef <$> 
@@ -205,8 +208,37 @@ instrumentBlockItem _ (CNestedFunDef fundef) =
         else analyseFunDef fundef >> return fundef
 instrumentBlockItem c (CBlockStmt s) = CBlockStmt <$> instrumentStmt c s 
 
-instrumentStmt :: [StmtCtx] -> CStat -> Trav InstrumentationState CStat
-instrumentStmt c = return 
+instrumentStmt :: [StmtCtx] -> CStat -> InstTrav CStat
+instrumentStmt c s@(CExpr expr node) =
+    case expr of
+        Nothing -> return s
+        Just e -> do
+            expr' <- instrumentExpr c RValue e
+            return $ CExpr (Just expr') node
+instrumentStmt _ s = return s
+
+instrumentExpr :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav CExpr
+instrumentExpr c _ expr@(CAssign op lhs rhs node) = do
+        let lhs' = setIndirections lhs
+        rhs' <- processRhs rhs
+        return $ CAssign op lhs' rhs' node
+    where
+    setIndirections var@(CVar id node) = CUnary CIndOp var node
+    setIndirections (CUnary CIndOp expr node) = setIndirections expr
+    setIndirections _ = error "Setting indirections failed"
+instrumentExpr c side expr = return expr
+
+processRhs :: CExpr -> InstTrav CExpr
+processRhs rhs = do
+    dependency <- exprDependency rhs
+    case dependency of
+        Preserving -> return $ makeStrConst "PRESERVING" rhs
+        Nonpreserving -> return $ makeStrConst "NON-PRESERVING" rhs
+        _ -> return rhs
+
+makeStrConst :: String -> CExpr -> CExpr
+makeStrConst strConst expr = let node_info = nodeInfo expr 
+                             in CConst $ CStrConst (cString strConst) node_info
 
 setStrConst :: String -> CDecl -> CDecl
 setStrConst strConst (CDecl [typeSpecifier] [(Just declr, _, expr)] node_info) =
@@ -218,7 +250,7 @@ setStrConst strConst (CDecl [typeSpecifier] [(Just declr, _, expr)] node_info) =
     in CDecl [typeSpecifier'] [(Just declr', Just initlr, expr)] node_info
 setStrConst _ _ = error "Tried to set str const to invalid declaration"
 
-instrumentDecl :: Bool -> CDecl -> Trav InstrumentationState CDecl
+instrumentDecl :: Bool -> CDecl -> InstTrav CDecl
 instrumentDecl _is_local s@CStaticAssert{} = return s
 instrumentDecl is_local decl@(CDecl declspecs declrs node)
     | null declrs = return decl
@@ -228,45 +260,56 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
         return decl'
 
     where
-    instrumentDecl' :: CDecl -> Trav InstrumentationState CDecl
-    instrumentDecl' decl@(CDecl declspecs [(Just declr, _init, _)] node) =
-        if isSource decl
-        then 
-            case identOfDecl decl of
-                Nothing -> return decl
-                Just id -> do
-                    addToSources id
-                    return $ setStrConst "SOURCE" decl
-        else do
-            dependency <- dependencyOnSource decl
-            case dependency of
-                Preserving -> return $ setStrConst "PRESERVING" decl
-                Nonpreserving -> return $ setStrConst "NON-PRESERVING" decl
-                _ -> return decl
+    instrumentDecl' :: CDecl -> InstTrav CDecl
+    instrumentDecl' decl@(CDecl declspecs [(Just declr, _init, _)] node) = do
+        dependency <- declDependency decl
+        case dependency of
+            Preserving -> return $ setStrConst "PRESERVING" decl
+            Nonpreserving -> return $ setStrConst "NON-PRESERVING" decl
+            Source -> case identOfDecl decl of
+                        Nothing -> return decl
+                        Just id -> do
+                            addToSources id
+                            return $ setStrConst "SOURCE" decl
+            _ -> return decl
     instrumentDecl' decl@CDecl{} = return decl
     instrumentDecl' CStaticAssert{} = error "Tried to instrument a static assertion"
 
 annotatedSources = ["foo", "bar"]
 
-isSource :: CDecl -> Bool
-isSource d@(CDecl typeSpecifier declr node_info) =
-        case identOfDecl d of 
-            Just (Ident name _ _) -> name `elem` annotatedSources
-            Nothing               -> False
-isSource _ = False
+exprDependency :: CExpr -> InstTrav EntropicDependency
+exprDependency expr = do
+        dTable <- getDefTable
+        st <- getUserState
+        let currentSources = sources st
+            lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
+        if null lookupAll 
+        then return NoDependency 
+        else return Preserving
+exprDependency _ = return NoDependency
 
-dependencyOnSource :: CDecl -> Trav InstrumentationState EntropicDependency
-dependencyOnSource (CDecl [typeSpecifier] 
-                   [(Just declr, Just (CInitExpr expr node_info), size)] -- TODO: support for InitializerLists?
-                   node_info2) = do
-                        dTable <- getDefTable
-                        st <- getUserState
-                        let currentSources = sources st
-                            lookupAll = mapMaybe ((`lookupIdent` dTable)) currentSources
-                        if null lookupAll 
-                        then return NoDependency 
-                        else return Preserving
-dependencyOnSource _ = return NoDependency
+declDependency :: CDecl -> InstTrav EntropicDependency
+declDependency decl@(CDecl [typeSpecifier] 
+                     [(Just declr, Just (CInitExpr expr node_info), size)] -- TODO: support for InitializerLists?
+                     node_info2) =
+                        if isSource decl
+                        then return Source
+                        else do
+                            dTable <- getDefTable
+                            st <- getUserState
+                            let currentSources = sources st
+                                lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
+                            if null lookupAll 
+                            then return NoDependency 
+                            else return Preserving
+    where
+        isSource :: CDecl -> Bool
+        isSource d@(CDecl typeSpecifier declr node_info) =
+                case identOfDecl d of 
+                    Just (Ident name _ _) -> name `elem` annotatedSources
+                    Nothing               -> False
+        isSource _ = False
+declDependency _ = return NoDependency
     
 identOfDecl :: CDecl -> Maybe Ident
 identOfDecl (CDecl _ declr _) = case declr of
