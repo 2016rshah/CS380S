@@ -128,7 +128,9 @@ instrumentationTraversal (CTranslUnit decls _file_node) = do
 
 instrumentExt :: CExtDecl -> Trav InstrumentationState ()
 instrumentExt (CAsmExt asm _) = handleAsmBlock asm
-instrumentExt (CFDefExt fundef) = (if shouldInstrumentFunction fundef then instrumentFunction else analyseFunDef) fundef
+instrumentExt (CFDefExt fundef) = if shouldInstrumentFunction fundef 
+                                  then void $ instrumentFunction fundef 
+                                  else analyseFunDef fundef
 instrumentExt (CDeclExt decl) = analyseDecl False decl
 
 instrumentedFunctions = ["main"]
@@ -139,7 +141,7 @@ shouldInstrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info)
         (CDeclr (Just (Ident name _ _)) _ _ _ _) -> name `elem` instrumentedFunctions
         _                                        -> False
 
-instrumentFunction :: CFunDef -> Trav InstrumentationState ()
+instrumentFunction :: CFunDef -> Trav InstrumentationState CFunDef
 instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
     -- analyse the declarator
     var_decl_info <- analyseVarDecl' True declspecs declr oldstyle_decls Nothing
@@ -157,6 +159,7 @@ instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
     stmt' <- instrumentFunctionBody node_info var_decl stmt
     -- callback for definition
     handleFunDef ident (FunDef var_decl stmt' node_info)
+    return $ CFunDef declspecs declr oldstyle_decls stmt' node_info
     where
     improveFunDefType (FunctionType (FunTypeIncomplete return_ty) attrs) =
       return $ FunctionType (FunType return_ty [] False) attrs
@@ -196,11 +199,10 @@ instrumentFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compou
 instrumentBlockItem :: [StmtCtx] -> CBlockItem -> Trav InstrumentationState CBlockItem
 instrumentBlockItem _ (CBlockDecl d) = CBlockDecl <$> instrumentDecl True d 
 instrumentBlockItem _ (CNestedFunDef fundef) = 
-    CNestedFunDef <$> do
+    CNestedFunDef <$> 
         if shouldInstrumentFunction fundef 
         then instrumentFunction fundef
-        else analyseFunDef fundef
-        return fundef
+        else analyseFunDef fundef >> return fundef
 instrumentBlockItem c (CBlockStmt s) = CBlockStmt <$> instrumentStmt c s 
 
 instrumentStmt :: [StmtCtx] -> CStat -> Trav InstrumentationState CStat
