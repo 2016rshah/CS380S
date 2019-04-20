@@ -9,6 +9,8 @@ import Language.C.Data.InputStream
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
 import Language.C.Analysis.AstAnalysis
+import Language.C.Analysis.SemError
+import Language.C.Analysis.DeclAnalysis
 import Language.C.Analysis.TypeUtils
 import Language.C.Syntax.Utils
 import Language.C.Analysis.DefTable hiding (enterFunctionScope, leaveFunctionScope)
@@ -27,8 +29,6 @@ import Text.PrettyPrint
 import Data.List
 import Data.Maybe 
 import Control.Monad
-
--- import qualified Data.Map.Lazy as Map
 
 type VarCount = (Int, Int)
 type Log = [String]
@@ -117,32 +117,78 @@ main = do
 
 
 instrumentationTraversal :: CTranslUnit -> Trav InstrumentationState CTranslUnit
-instrumentationTraversal ast = 
-        export <$> withExtDeclHandler innerTrav instrumentationDeclHandler
-        -- (lg, ast') <- getUserState
-        -- return ast'
-    where innerTrav = analyseAST ast
+instrumentationTraversal (CTranslUnit decls _file_node) = do
+    -- instrument all declarations, but recover from errors
+    mapRecoverM_ instrumentExt decls
+    -- check we are in global scope afterwards
+    dTable <- getDefTable
+    getDefTable >>= (\dt -> unless (inFileScope dt) $ error "Internal Error: Not in filescope after analysis")
+    -- get the global definition table and export to an AST
+    export . globalDefs <$> getDefTable
+    where
+    mapRecoverM_ f = mapM_ (handleTravError . f)
 
-instrumentFunction :: FunDef -> Trav InstrumentationState FunDef
-instrumentFunction f@(FunDef var_decl body node_info) =
-    do
-    newBody <- instrumentFunctionBody node_info var_decl body
-    return $ FunDef var_decl newBody node_info
+instrumentExt :: CExtDecl -> Trav InstrumentationState ()
+instrumentExt (CAsmExt asm _) = handleAsmBlock asm
+instrumentExt (CFDefExt fundef) = instrumentFunction fundef
+instrumentExt (CDeclExt decl) = analyseDecl False decl
 
-instrumentFunctionBody :: NodeInfo -> VarDecl -> CStat -> Trav InstrumentationState CStat
+instrumentFunction :: CFunDef -> Trav InstrumentationState ()
+instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
+    -- analyse the declarator
+    var_decl_info <- analyseVarDecl' True declspecs declr oldstyle_decls Nothing
+    let (VarDeclInfo name fun_spec storage_spec attrs ty _declr_node) = var_decl_info
+    when (isNoName name) $ astError node_info "NoName in analyseFunDef"
+    let ident = identOfVarName name
+    -- improve incomplete type
+    ty' <- improveFunDefType ty
+    -- compute storage
+    fun_storage <- computeFunDefStorage ident storage_spec
+    let var_decl = VarDecl name (DeclAttrs fun_spec fun_storage attrs) ty'
+    -- callback for declaration
+    handleVarDecl False (Decl var_decl node_info)
+    -- instrument body
+    stmt' <- instrumentFunctionBody node_info var_decl stmt
+    -- callback for definition
+    handleFunDef ident (FunDef var_decl stmt' node_info)
+    where
+    improveFunDefType (FunctionType (FunTypeIncomplete return_ty) attrs) =
+      return $ FunctionType (FunType return_ty [] False) attrs
+    improveFunDefType ty = return ty
+    -- computeFunDefStorage copied from Language.C.Analysis.AstAnalysis
+    -- | compute storage of a function definition
+    --
+    -- a function definition has static storage with internal linkage if specified `static`,
+    -- the previously declared linkage if any if 'extern' or no specifier are present. (See C99 6.2.2, clause 5)
+    --
+    -- This function won't raise an Trav error if the declaration is incompatible with the existing one,
+    -- this case is handled in 'handleFunDef'.
+    computeFunDefStorage :: (MonadTrav m) => Ident -> StorageSpec -> m Storage
+    computeFunDefStorage _ (StaticSpec _)  = return$ FunLinkage InternalLinkage
+    computeFunDefStorage ident other_spec  = do
+        obj_opt <- lookupObject ident
+        let defaultSpec = FunLinkage ExternalLinkage
+        case other_spec of
+            NoStorageSpec  -> return$ maybe defaultSpec declStorage obj_opt
+            (ExternSpec False) -> return$ maybe defaultSpec declStorage obj_opt
+            bad_spec -> throwTravError $ badSpecifierError (nodeInfo ident)
+                        $ "unexpected function storage specifier (only static or extern is allowed)" ++ show bad_spec
+
+
+instrumentFunctionBody :: NodeInfo -> VarDecl -> CStat -> Trav InstrumentationState Stmt
 instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_body) =
     do 
-    enterFunctionScope
-    mapM_ (withDefTable . defineLabel) (localLabels ++ getLabels s)
-    defineParams node_info decl
-    -- record parameters
-    items' <- mapM (instrumentBlockItem [FunCtx decl]) items
-    leaveFunctionScope
-    return $ CCompound localLabels items' node_info_body
+        enterFunctionScope
+        mapM_ (withDefTable . defineLabel) (localLabels ++ getLabels s)
+        defineParams node_info decl
+        -- record parameters
+        items' <- mapM (instrumentBlockItem [FunCtx decl]) items
+        leaveFunctionScope
+        return $ CCompound localLabels items' node_info_body
 instrumentFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
 
 instrumentBlockItem :: [StmtCtx] -> CBlockItem -> Trav InstrumentationState CBlockItem
-instrumentBlockItem c (CBlockDecl d) = CBlockDecl <$> instrumentDecl d
+instrumentBlockItem c (CBlockDecl d) = CBlockDecl <$> instrumentDecl True d 
 instrumentBlockItem c b = return b
 
 setStrConst :: String -> CDecl -> CDecl
@@ -155,26 +201,33 @@ setStrConst strConst (CDecl [typeSpecifier] [(Just declr, _, expr)] node_info) =
     in CDecl [typeSpecifier'] [(Just declr', Just initlr, expr)] node_info
 setStrConst _ _ = error "Tried to set str const to invalid declaration"
 
--- setStrConst [(Just x, Just (CInitExpr (CConst (CStrConst _ ni3)) ni4), e)] =
---     [(Just x, Just (CInitExpr (CConst (CStrConst (cString "F") ni3)) ni4), e)]
+instrumentDecl :: Bool -> CDecl -> Trav InstrumentationState CDecl
+instrumentDecl _is_local s@CStaticAssert{} = return s
+instrumentDecl is_local decl@(CDecl declspecs declrs node)
+    | null declrs = return decl
+    | otherwise   = do
+        decl' <- instrumentDecl' decl
+        analyseDecl is_local decl'
+        return decl'
 
-instrumentDecl :: CDecl -> Trav InstrumentationState CDecl
-instrumentDecl s@CStaticAssert{} = return s
-instrumentDecl d@(CDecl typeSpecifier declr node_info) =
-    if isSource d 
-    then do
-        case identOfDecl d of
-            Just id -> do
-                withDefTable $ defineLocalIdent id (ObjDef )
-                addToSources id
-            Nothing -> return ()
-        return $ setStrConst "SOURCE" d
-    else do
-        dependency <- dependencyOnSource d
-        case dependency of
-            Preserving -> return $ setStrConst "PRESERVING" d
-            Nonpreserving -> return $ setStrConst "NON-PRESERVING" d
-            _ -> return d
+    where
+    instrumentDecl' :: CDecl -> Trav InstrumentationState CDecl
+    instrumentDecl' decl@(CDecl declspecs [(Just declr, _init, _)] node) =
+        if isSource decl
+        then 
+            case identOfDecl decl of
+                Nothing -> return decl
+                Just id -> do
+                    addToSources id
+                    return $ setStrConst "SOURCE" decl
+        else do
+            dependency <- dependencyOnSource decl
+            case dependency of
+                Preserving -> return $ setStrConst "PRESERVING" decl
+                Nonpreserving -> return $ setStrConst "NON-PRESERVING" decl
+                _ -> return decl
+    instrumentDecl' decl@CDecl{} = return decl
+    instrumentDecl' CStaticAssert{} = error "Tried to instrument a static assertion"
 
 annotatedSources = ["foo", "bar"]
 
@@ -224,18 +277,18 @@ shouldInstrumentFunction f@(FunDef decl_info body node_info) =
                                                                 else return False
         _                                                  -> return False
 
-instrumentationDeclHandler :: DeclEvent -> Trav InstrumentationState ()
-instrumentationDeclHandler (DeclEvent (FunctionDef f)) = do
-    b <- shouldInstrumentFunction f
-    when b $ do
-        f' <- instrumentFunction f
-        addTransformedFn (f,f')
-        -- logPretty f'
-        let newFunDef = FunctionDef f'
-            FunDef (VarDecl vname _ _) _ _ = f' 
-            id = identOfVarName vname
-        withDefTable $ defineGlobalIdent id newFunDef
-        return ()
+-- instrumentationDeclHandler :: DeclEvent -> Trav InstrumentationState ()
+-- instrumentationDeclHandler (DeclEvent (FunctionDef f)) = do
+--     b <- shouldInstrumentFunction f
+--     when b $ do
+--         f' <- instrumentFunction f
+--         addTransformedFn (f,f')
+--         -- logPretty f'
+--         let newFunDef = FunctionDef f'
+--             FunDef (VarDecl vname _ _) _ _ = f' 
+--             id = identOfVarName vname
+--         withDefTable $ defineGlobalIdent id newFunDef
+--         return ()
 
 -- instrumentationDeclHandler (LocalEvent (ObjectDef o)) = do
 --                                                             case getObjIdent o of
@@ -257,9 +310,6 @@ instrumentationDeclHandler _                          = return ()
 -- instrumentationDeclHandler (DeclEvent i)             = modifyUserState $ log i
 -- instrumentationDeclHandler (TagEvent i)             = modifyUserState $ log i
 
-getObjIdent :: ObjDef -> Maybe Ident
-getObjIdent (ObjDef (VarDecl (VarName id _) _ _) _ _) = Just id
-getObjIdent _ = Nothing
 
 addToCount x y vc@(global, local) = (global+x, local+y)
 
