@@ -238,10 +238,22 @@ instrumentStmt c (CFor init expr2 expr3 stmt node) = do
 instrumentStmt c (CReturn expr node) = do
     expr' <- mkMaybeExpr c expr
     return $ CReturn expr' node
-instrumentStmt _ CSwitch{} = error "Case statements not supported yet"
-instrumentStmt _ CCase{} = error "Case statements not supported yet"
-instrumentStmt _ CCases{} = error "Case statements not supported yet"
-instrumentStmt _ CDefault{} = error "Case statements not supported yet"
+instrumentStmt c (CSwitch selectorExpr switchStmt node) = do
+    selectorExpr' <- instrumentExpr c RValue selectorExpr
+    switchStmt' <- instrumentStmt c switchStmt
+    return $ CSwitch selectorExpr' switchStmt' node
+instrumentStmt c (CCases lower upper stmt node) = do
+        lower' <- instrumentExpr c RValue lower
+        upper' <- instrumentExpr c RValue upper
+        stmt' <- instrumentStmt c stmt
+        return $ CCases lower' upper' stmt' node
+instrumentStmt c (CCase expr stmt node) = do
+    expr' <- instrumentExpr c RValue expr
+    stmt' <- instrumentStmt c stmt
+    return $ CCase expr' stmt' node
+instrumentStmt c (CDefault stmt node) = do
+    stmt' <- instrumentStmt c stmt
+    return $ CDefault stmt' node
 instrumentStmt _ s = return s
 
 mkMaybeExpr c = maybe (return Nothing) (\x -> Just <$> instrumentExpr c RValue x)
