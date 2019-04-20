@@ -92,7 +92,6 @@ main = do
         let f (Left pr) = error $ show pr
             f (Right pr) = pr
             parsed@(CTranslUnit ed ni) = f parseResult
-            traversal = buildCountingTraversal parsed
             g (Left err) = error "Traversal error"
             g (Right (result, state)) = (result, userState state)
             (traversalResult, traversalState) = g $ runTrav (emptyInstState fp) $ instrumentationTraversal parsed
@@ -107,7 +106,6 @@ main = do
         print $ pretty parsed
         printFormattedFilename (fp ++ " Transformed") 12
         print $ pretty newAst
-        print (pretty parsed == pretty newAst)
     where
         prettyAst ast@(CTranslUnit ed ni) = ppShow ed
         printFormattedFilename fp n = do
@@ -130,8 +128,16 @@ instrumentationTraversal (CTranslUnit decls _file_node) = do
 
 instrumentExt :: CExtDecl -> Trav InstrumentationState ()
 instrumentExt (CAsmExt asm _) = handleAsmBlock asm
-instrumentExt (CFDefExt fundef) = instrumentFunction fundef
+instrumentExt (CFDefExt fundef) = (if shouldInstrumentFunction fundef then instrumentFunction else analyseFunDef) fundef
 instrumentExt (CDeclExt decl) = analyseDecl False decl
+
+instrumentedFunctions = ["main"]
+
+shouldInstrumentFunction :: CFunDef -> Bool
+shouldInstrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = 
+    case declr of
+        (CDeclr (Just (Ident name _ _)) _ _ _ _) -> name `elem` instrumentedFunctions
+        _                                        -> False
 
 instrumentFunction :: CFunDef -> Trav InstrumentationState ()
 instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
@@ -255,100 +261,3 @@ identOfDecl :: CDecl -> Maybe Ident
 identOfDecl (CDecl _ declr _) = case declr of
                                     [(Just (CDeclr (Just id) _ _ _ _), _, _)] -> Just id
                                     _ -> Nothing
-
-
- -- copied
--- | Typecheck a block item. When statement expressions are blocks,
---   they have the type of their last expression statement, so this
---   needs to return a type.
-tBlockItem :: MonadTrav m => [StmtCtx] -> CBlockItem -> m Type
-tBlockItem c (CBlockStmt s) = tStmt c s
-tBlockItem _ (CBlockDecl d) = analyseDecl True d >> return voidType
--- TODO: fixup analyseFunDef to handle nested functions
-tBlockItem _ (CNestedFunDef fd) = analyseFunDef fd >> return voidType
-
-instrumentedFunctions = ["main"]
-
-shouldInstrumentFunction :: FunDef -> Trav s Bool
-shouldInstrumentFunction f@(FunDef decl_info body node_info) = 
-    case decl_info of
-        (VarDecl (VarName (Ident name i n_i) asmName) x y) -> if name `elem` instrumentedFunctions
-                                                                then return True
-                                                                else return False
-        _                                                  -> return False
-
--- instrumentationDeclHandler :: DeclEvent -> Trav InstrumentationState ()
--- instrumentationDeclHandler (DeclEvent (FunctionDef f)) = do
---     b <- shouldInstrumentFunction f
---     when b $ do
---         f' <- instrumentFunction f
---         addTransformedFn (f,f')
---         -- logPretty f'
---         let newFunDef = FunctionDef f'
---             FunDef (VarDecl vname _ _) _ _ = f' 
---             id = identOfVarName vname
---         withDefTable $ defineGlobalIdent id newFunDef
---         return ()
-
--- instrumentationDeclHandler (LocalEvent (ObjectDef o)) = do
---                                                             case getObjIdent o of
---                                                                 Nothing -> return ()
---                                                                 Just id@(Ident varName _ _) -> when (varName == "bar")
---                                                                                                     $ modifyUserState (\is -> is { source = Just id })
---                                                             dTable <- getDefTable
---                                                             st <- getUserState
---                                                             lookup <- case source st of
---                                                                     Just id -> lookupObject id
---                                                                     Nothing -> return Nothing
---                                                             return ()
-instrumentationDeclHandler _                          = return ()
-                                                            -- case lookup of
-                                                            --     Just id -> modifyUserState $ log True
-                                                            --     Nothing -> modifyUserState $ log False
-                                                            -- modifyUserState $ log o
--- instrumentationDeclHandler (LocalEvent i) = modifyUserState $ log i
--- instrumentationDeclHandler (DeclEvent i)             = modifyUserState $ log i
--- instrumentationDeclHandler (TagEvent i)             = modifyUserState $ log i
-
-
-addToCount x y vc@(global, local) = (global+x, local+y)
-
-countingTraversal :: Trav VarCount a -> Trav VarCount a
-countingTraversal tr = do
-    let f (DeclEvent (ObjectDef _)) = modifyUserState $ addToCount 1 0
-        f (LocalEvent (ObjectDef o)) = modifyUserState $ addToCount 1 0
-        f _ = modifyUserState id
-    withExtDeclHandler tr f
-
-
-
--- editSources :: CTranslUnit -> Trav Log CTranslUnit
--- editSources (CTranslUnit decls _file_node) = do
---     -- analyse all declarations, but recover from errors
---     decls' <- mapM analyzeSources decls
---     return $ CTranslUnit decls' _file_node
-
--- analyzeSources :: CExtDecl -> Trav Log CExtDecl
--- analyzeSources d@(CDeclExt decl) = case decl of
---                                     d'@(CDecl s as ni) -> return $ CDeclExt $ CDecl s (setConst as) ni
---                                     _ -> return d
--- analyzeSources d@(CFDefExt f) = case getFunctionName f of
---                                 Just name -> modify $ \ts -> ts { userState = f (userState ts) }
---                                 modifyUserState $ addToLog name
---                                 Nothing -> return d
--- analyzeSources d = return d
-
-
-getFunctionName :: CFunDef -> Maybe String
-getFunctionName (CFunDef _ (CDeclr mId _ _ _ _) _ _ _) = mId >>= f 
-    where f (Ident name _ _) = return name
-
-
-analyzeInitialization :: ObjDef -> Bool
-analyzeInitialization (ObjDef _ Nothing _) = False
-analyzeInitialization (ObjDef _ (Just init) _) = case init of
-                                            CInitExpr x _ -> True
-                                            CInitList y _ -> False
-
-buildCountingTraversal :: CTranslUnit -> Trav VarCount GlobalDecls
-buildCountingTraversal ast = analyseAST ast 
