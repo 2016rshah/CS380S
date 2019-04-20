@@ -194,8 +194,17 @@ instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_b
 instrumentFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
 
 instrumentBlockItem :: [StmtCtx] -> CBlockItem -> Trav InstrumentationState CBlockItem
-instrumentBlockItem c (CBlockDecl d) = CBlockDecl <$> instrumentDecl True d 
-instrumentBlockItem c b = return b
+instrumentBlockItem _ (CBlockDecl d) = CBlockDecl <$> instrumentDecl True d 
+instrumentBlockItem _ (CNestedFunDef fundef) = 
+    CNestedFunDef <$> do
+        if shouldInstrumentFunction fundef 
+        then instrumentFunction fundef
+        else analyseFunDef fundef
+        return fundef
+instrumentBlockItem c (CBlockStmt s) = CBlockStmt <$> instrumentStmt c s 
+
+instrumentStmt :: [StmtCtx] -> CStat -> Trav InstrumentationState CStat
+instrumentStmt c = return 
 
 setStrConst :: String -> CDecl -> CDecl
 setStrConst strConst (CDecl [typeSpecifier] [(Just declr, _, expr)] node_info) =
