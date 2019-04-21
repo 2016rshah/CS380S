@@ -24,6 +24,7 @@ dependencies:
 - language-c >= 0.8.2
 - pretty-show >= 1.9.5
 - pretty >= 1.1.3.6
+- containers >= 0.6.0.1
 
 library:
   source-dirs: src

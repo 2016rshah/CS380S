@@ -30,6 +30,7 @@ import Text.PrettyPrint
 
 import Data.List
 import Data.Maybe 
+import qualified Data.Map as Map
 import Control.Monad
 
 type VarCount = (Int, Int)
@@ -46,52 +47,52 @@ data EntropicDependency =
     LowEntropy |
     NoDependency deriving (Show, Eq)
 
-checkPreserving :: (Eq a) => a -> [a] -> OpDependency
-checkPreserving op preserving = if op `elem` preserving then Preserving else Nonpreserving
+checkPreserving :: (Eq a) => [a] -> a -> OpDependency
+checkPreserving preservingOps op = if op `elem` preservingOps then Preserving else Nonpreserving
 
-unaryDependency :: (Eq a) => [a] -> a -> EntropicDependency -> EntropicDependency
-unaryDependency preservingOps op NoDependency = NoDependency
-unaryDependency preservingOps op exprDep =
-    let opDep = checkPreserving op preservingOps
-    in case opDep of
-        Preserving -> exprDep
-        Nonpreserving -> LowEntropy
+applyOpDependency :: OpDependency -> [EntropicDependency] -> EntropicDependency
+applyOpDependency opDep deps = 
+    let combined = foldr combineDependencies NoDependency deps in
+    case combined of
+        NoDependency -> NoDependency
+        _ -> case opDep of
+                Preserving -> combined
+                Nonpreserving -> LowEntropy
 
-binaryDependency :: (Eq a) => [a] -> a -> EntropicDependency -> EntropicDependency -> EntropicDependency
-binaryDependency preservingOps op NoDependency NoDependency = NoDependency
-binaryDependency preservingOps op exprDep1 exprDep2 =
-    let opDep = checkPreserving op preservingOps
-    in case opDep of
-        Preserving -> combineDependencies exprDep1 exprDep2
-        Nonpreserving -> LowEntropy
-    where
-        combineDependencies :: EntropicDependency -> EntropicDependency -> EntropicDependency
-        combineDependencies Source dep = 
-            case dep of
-                Source -> Source
-                HighEntropy -> HighEntropy
-                LowEntropy -> LowEntropy
-                NoDependency -> Source
-        combineDependencies HighEntropy dep = 
-            case dep of
-                HighEntropy -> HighEntropy
-                LowEntropy -> LowEntropy
-                NoDependency -> HighEntropy
-                _ -> combineDependencies dep HighEntropy
-        combineDependencies LowEntropy dep = LowEntropy
-        combineDependencies NoDependency dep =
-            case dep of
-                NoDependency -> NoDependency
-                _ -> combineDependencies dep NoDependency
+applyOpDep opDep dep = applyOpDependency opDep [dep]
+
+combineDependencies :: EntropicDependency -> EntropicDependency -> EntropicDependency
+combineDependencies Source dep = 
+    case dep of
+        Source -> Source
+        HighEntropy -> HighEntropy
+        LowEntropy -> LowEntropy
+        NoDependency -> Source
+combineDependencies HighEntropy dep = 
+    case dep of
+        HighEntropy -> HighEntropy
+        LowEntropy -> LowEntropy
+        NoDependency -> HighEntropy
+        _ -> combineDependencies dep HighEntropy
+combineDependencies LowEntropy dep = LowEntropy
+combineDependencies NoDependency dep =
+    case dep of
+        NoDependency -> NoDependency
+        _ -> combineDependencies dep NoDependency
 
 assignmentOpDependency :: CAssignOp -> EntropicDependency -> EntropicDependency
-assignmentOpDependency = unaryDependency [CAssignOp, CXorAssOp, CAddAssOp, CMulAssOp, CSubAssOp]
+assignmentOpDependency op = applyOpDep $ checkPreserving [CAssignOp, CXorAssOp, CAddAssOp, CMulAssOp, CSubAssOp] op
 
 unaryOpDependency :: CUnaryOp -> EntropicDependency -> EntropicDependency
-unaryOpDependency = unaryDependency [CPreIncOp, CPreDecOp, CPostIncOp, CPostDecOp, CPlusOp, CMinOp, CCompOp, CNegOp]
+unaryOpDependency op = applyOpDep $
+    checkPreserving [CPreIncOp, CPreDecOp, CPostIncOp, CPostDecOp, CPlusOp, CMinOp, CCompOp, CNegOp, CIndOp] op
 
 binaryOpDependency :: CBinaryOp -> EntropicDependency -> EntropicDependency -> EntropicDependency
-binaryOpDependency = binaryDependency [CMulOp, CAddOp, CSubOp, CXorOp]
+binaryOpDependency op expr1 expr2 = applyOpDependency (checkPreserving [CMulOp, CAddOp, CSubOp, CXorOp] op) [expr1, expr2]
+
+functionCallDependency :: String -> [EntropicDependency] -> EntropicDependency
+functionCallDependency fnName = applyOpDependency (checkPreserving ["f"] fnName)
+
 
 data InstrumentationState = IState 
     { 
@@ -334,7 +335,7 @@ instrumentExpr c side expr = return expr
 processRhs :: EntropicDependency -> CExpr -> CExpr
 processRhs dependency rhs =
     case dependency of
-        Source      -> makeStrConst "SOURC" rhs
+        Source      -> makeStrConst "SOURCE" rhs
         HighEntropy -> makeStrConst "HIGH ENTROPY" rhs
         LowEntropy  -> makeStrConst "LOW ENTROPY" rhs
         _           -> rhs
@@ -383,12 +384,16 @@ annotatedSources = ["baz"]--["foo", "bar"]
 exprDependency :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav EntropicDependency
 exprDependency _ LValue _ = return NoDependency
 exprDependency c side (CCast declr expr _node) = exprDependency c side expr
-exprDependency c side (CSizeofExpr expr _node) = return LowEntropy
 exprDependency c side (CUnary op expr _node) = unaryOpDependency op <$> exprDependency c side expr
 exprDependency c side (CBinary op expr1 expr2 _node) = 
     liftM2 (binaryOpDependency op) (exprDependency c side expr1) (exprDependency c side expr2)
 exprDependency c side (CConst _) = return NoDependency
-exprDependency c _ expr = do
+exprDependency c side (CComplexReal expr _node) = applyOpDep Preserving <$> exprDependency c side expr
+exprDependency c side (CComplexImag expr _node) = applyOpDep Nonpreserving <$> exprDependency c side expr
+exprDependency c side (CCall fn args _) = 
+    let fnName = maybe "" identToString (identOfExpr fn)
+    in functionCallDependency fnName <$> mapM (exprDependency c side) args
+exprDependency c _ (CVar id node) = do
         dTable <- getDefTable
         st <- getUserState
         let currentSources = sources st
@@ -396,6 +401,11 @@ exprDependency c _ expr = do
         if null lookupAll 
         then return NoDependency 
         else return HighEntropy
+exprDependency c side (CSizeofExpr expr _) = applyOpDep Nonpreserving <$> exprDependency c side expr
+exprDependency c side (CSizeofType declr _) = applyOpDep Nonpreserving <$> declDependency declr
+exprDependency c side (CAlignofExpr expr _) = applyOpDep Nonpreserving <$> exprDependency c side expr
+exprDependency c side (CAlignofType declr _) = applyOpDep Nonpreserving <$> declDependency declr
+exprDependency _ _ _ = return NoDependency
 
 declDependency :: CDecl -> InstTrav EntropicDependency
 declDependency decl@(CDecl [typeSpecifier] 

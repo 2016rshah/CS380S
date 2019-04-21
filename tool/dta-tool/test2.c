@@ -9,6 +9,7 @@ int main(int argc, char** argv) {
         zxcv = 3 + baz;
         zxcv &= baz + 3;
         zxcv = 3 + 3;
+        baz = f(baz);
     }
     if (t == "qwer") {
         *t = "1234";
@@ -35,6 +36,6 @@ char* g() {
     return "preservational";
 }
 
-void f() {
-    int testVar = 3;
+int f(int k) {
+    return k;
 }
