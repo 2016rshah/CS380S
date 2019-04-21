@@ -240,9 +240,6 @@ instrumentStmt c (CFor init expr2 expr3 stmt node) = do
     stmt' <- instrumentStmt c stmt
     leaveBlockScope
     return $ CFor init' expr2' expr3' stmt' node
-instrumentStmt c (CReturn expr node) = do -- TODO: Make consistent with enclosing function type
-    expr' <- mkMaybeExpr c expr
-    return $ CReturn expr' node
 instrumentStmt c (CSwitch selectorExpr switchStmt node) = do
     selectorExpr' <- instrumentExpr c RValue selectorExpr
     switchStmt' <- instrumentStmt c switchStmt
@@ -272,9 +269,6 @@ instrumentExpr c _ expr@(CAssign op lhs rhs node) = do
     setIndirections var@(CVar id node) = CUnary CIndOp var node
     setIndirections (CUnary CIndOp expr node) = setIndirections expr
     setIndirections _ = error "Setting indirections failed"
-instrumentExpr c _ expr@(CConst (CStrConst s node)) = if getCString s == "preservational" 
-                                                 then return $ makeStrConst "PRESERVING_RETURN" expr
-                                                 else return expr
 instrumentExpr c side expr = return expr
 
 processRhs :: CExpr -> InstTrav CExpr
@@ -290,7 +284,7 @@ makeStrConst strConst expr = let node_info = nodeInfo expr
                              in CConst $ CStrConst (cString strConst) node_info
 
 setStrConst :: String -> CDecl -> CDecl
-setStrConst strConst (CDecl [typeSpecifier] [(Just declr, _, expr)] node_info) =
+setStrConst strConst (CDecl typeSpecifier [(Just declr, _, expr)] node_info) =
     -- TODO: node info needs fixing? I.E. not just inherited
     let initlr = CInitExpr (CConst (CStrConst (cString strConst) node_info)) node_info 
         typeSpecifier' = CTypeSpec (CCharType node_info)
@@ -338,19 +332,25 @@ exprDependency expr = do
 
 declDependency :: CDecl -> InstTrav EntropicDependency
 declDependency decl@(CDecl [typeSpecifier] 
-                     [(Just declr, Just (CInitExpr expr node_info), size)] -- TODO: support for InitializerLists?
+                     [(Just declr, expr, size)] -- TODO: support for InitializerLists?
                      node_info2) =
-                        if isSource decl
-                        then return Source
-                        else do
-                            dTable <- getDefTable
-                            st <- getUserState
-                            let currentSources = sources st
-                                lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
-                            if null lookupAll 
-                            then return NoDependency 
-                            else return Preserving
+                        case expr of
+                            Just (CInitExpr expr node_info) -> calcDependency decl
+                            Nothing                         -> calcDependency decl
+                            _                               -> return NoDependency
+                        
     where
+        calcDependency decl = 
+            if isSource decl
+            then return Source
+            else do
+                dTable <- getDefTable
+                st <- getUserState
+                let currentSources = sources st
+                    lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
+                if null lookupAll 
+                then return NoDependency 
+                else return Preserving
         isSource :: CDecl -> Bool
         isSource d@(CDecl typeSpecifier declr node_info) =
                 case identOfDecl d of 

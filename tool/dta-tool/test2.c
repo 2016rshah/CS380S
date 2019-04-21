@@ -4,7 +4,7 @@ int main(int argc, char** argv) {
     char** foo = t;
     char* bar = *t;
     for (;;) {
-        int baz = 12;
+        int baz;
         int zxcv = 34;
     }
     if (t == "qwer") {

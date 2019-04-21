@@ -134,10 +134,10 @@
                  (Just
                     (CConst
                        (CStrConst
-                          "PRESERVING_RETURN"
+                          "preservational"
                           (NodeInfo
                              ("test2.c" : line 7)
-                             ( "test2.c" : line 7 , 19 )
+                             ( "test2.c" : line 7 , 16 )
                              Name { nameId = 17 }))))
                  (NodeInfo
                     ("test2.c" : line 7)
