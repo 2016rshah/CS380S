@@ -14,7 +14,8 @@ import Language.C.Analysis.SemError
 import Language.C.Analysis.DeclAnalysis
 import Language.C.Analysis.TypeUtils
 import Language.C.Syntax.Utils
-import Language.C.Analysis.DefTable hiding (enterFunctionScope, leaveFunctionScope)
+import Language.C.Analysis.DefTable hiding (enterFunctionScope, leaveFunctionScope,
+                                            enterBlockScope, leaveBlockScope)
 import Language.C.Analysis.TravMonad
 import Language.C.Analysis.SemRep
 import Language.C.Analysis.Export
@@ -216,7 +217,9 @@ instrumentStmt c s@(CExpr expr node) =
             expr' <- instrumentExpr c RValue e
             return $ CExpr (Just expr') node
 instrumentStmt c (CCompound localLabels blocks node) = do
+    enterBlockScope
     blocks' <- mapM (instrumentBlockItem []) blocks
+    leaveBlockScope
     return $ CCompound localLabels blocks' node
 instrumentStmt c (CWhile guard body isDoWhile node) = do
     guard' <- instrumentExpr c RValue guard
@@ -230,12 +233,14 @@ instrumentStmt c (CIf ifExpr thenStmt maybeElse node) = do
 instrumentStmt c (CFor init expr2 expr3 stmt node) = do
     let mkExpr  e = Left <$> mkMaybeExpr c e
         mkDeclr d = Right <$> instrumentDecl True d
+    enterBlockScope
     init' <- either mkExpr mkDeclr init
     expr2' <- mkMaybeExpr c expr2
     expr3' <- mkMaybeExpr c expr3
     stmt' <- instrumentStmt c stmt
+    leaveBlockScope
     return $ CFor init' expr2' expr3' stmt' node
-instrumentStmt c (CReturn expr node) = do
+instrumentStmt c (CReturn expr node) = do -- TODO: Make consistent with enclosing function type
     expr' <- mkMaybeExpr c expr
     return $ CReturn expr' node
 instrumentStmt c (CSwitch selectorExpr switchStmt node) = do
@@ -319,7 +324,7 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
     instrumentDecl' decl@CDecl{} = return decl
     instrumentDecl' CStaticAssert{} = error "Tried to instrument a static assertion"
 
-annotatedSources = ["foo", "bar"]
+annotatedSources = ["baz"]--["foo", "bar"]
 
 exprDependency :: CExpr -> InstTrav EntropicDependency
 exprDependency expr = do

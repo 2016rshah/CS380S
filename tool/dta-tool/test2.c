@@ -3,6 +3,10 @@ int main(int argc, char** argv) {
     *t = "zxcv";
     char** foo = t;
     char* bar = *t;
+    for (;;) {
+        int baz = 12;
+        int zxcv = 34;
+    }
     if (t == "qwer") {
         *t = "1234";
         return 1;
