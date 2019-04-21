@@ -97,14 +97,14 @@ functionCallDependency fnName = applyOpDependency (checkPreserving ["f"] fnName)
 data InstrumentationState = IState 
     { 
         notes :: Log, 
-        sources :: [Ident],
+        taints :: Map.Map Ident EntropicDependency,
         transformedFns :: [(FunDef, FunDef)],
         ast :: CTranslUnit
     }
 
 instance Show InstrumentationState where
     show is = "Log: " ++ show (notes is) ++ "\n\n" ++
-                "Sources: " ++ show (map (show . pretty) (sources is)) ++ "\n\n" ++
+                "Taint values: " ++ show (Map.mapKeys (show . pretty) (taints is)) ++ "\n\n" ++
                 "Transformed Functions: \n" ++ showFns (transformedFns is)
         where showFns = concatMap (\(f, f') -> "\t" ++ (show . pretty) f ++ " -> " ++ (show . pretty) f' ++ "\n")
 
@@ -129,15 +129,15 @@ logPretty = modifyUserState . addPrettyToLog
 addTransformedFn :: (FunDef, FunDef) -> InstTrav ()
 addTransformedFn f = modifyUserState $ \is -> is { transformedFns = transformedFns is ++ [f] }
 
-addToSources :: Ident -> InstTrav ()
-addToSources s = modifyUserState $ \is -> is { sources = sources is ++ [s] }
+addToTaints :: Ident -> EntropicDependency -> InstTrav ()
+addToTaints id t = modifyUserState $ \is -> is { taints = Map.insert id t (taints is) }
 
 emptyInstState :: String -> InstrumentationState
 emptyInstState fileName = IState { 
                                     notes = [], 
                                     ast = CTranslUnit [] (OnlyPos pos (pos, 0)),
                                     transformedFns = [],
-                                    sources = []
+                                    taints = Map.empty
                                     }
     where pos = initialPos fileName 
 
@@ -318,7 +318,7 @@ instrumentExpr :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav CExpr
 instrumentExpr c side expr@(CAssign op lhs rhs node) = do
         dependency <- assignmentOpDependency op <$> exprDependency c side rhs
         when (dependency == Source) $ 
-            maybe (error "Could not find var of LHS when instrumenting a source expr") addToSources $ identOfExpr lhs
+            maybe (error "Could not find var of LHS when instrumenting a source expr") (`addToTaints` Source) (identOfExpr lhs)
         let lhs' = setIndirections lhs
             rhs' = processRhs dependency rhs
         return $ CAssign op lhs' rhs' node
@@ -373,7 +373,7 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
             Source -> case identOfDecl decl of
                         Nothing -> return decl
                         Just id -> do
-                            addToSources id
+                            addToTaints id Source
                             return $ setStrConst "SOURCE" decl
             _ -> return decl
     instrumentDecl' decl@CDecl{} = return decl
@@ -396,7 +396,7 @@ exprDependency c side (CCall fn args _) =
 exprDependency c _ (CVar id node) = do
         dTable <- getDefTable
         st <- getUserState
-        let currentSources = sources st
+        let currentSources = Map.keys $ taints st
             lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
         if null lookupAll 
         then return NoDependency 
@@ -423,7 +423,7 @@ declDependency decl@(CDecl [typeSpecifier]
             else do
                 dTable <- getDefTable
                 st <- getUserState
-                let currentSources = sources st
+                let currentSources = Map.keys $ taints st
                     lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
                 if null lookupAll 
                 then return NoDependency 
