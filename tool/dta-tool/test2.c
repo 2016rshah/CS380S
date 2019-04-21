@@ -6,6 +6,9 @@ int main(int argc, char** argv) {
     for (;;) {
         int baz;
         int zxcv = 34;
+        zxcv = 3 + baz;
+        zxcv &= baz + 3;
+        zxcv = 3 + 3;
     }
     if (t == "qwer") {
         *t = "1234";

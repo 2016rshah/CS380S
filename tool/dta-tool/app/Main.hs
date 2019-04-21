@@ -36,11 +36,62 @@ type VarCount = (Int, Int)
 type Log = [String]
 type InstTrav = Trav InstrumentationState  
 
+data OpDependency =
+    Preserving |
+    Nonpreserving deriving (Show, Eq)
+
 data EntropicDependency =
     Source |
-    Preserving |
-    Nonpreserving |
-    NoDependency
+    HighEntropy |
+    LowEntropy |
+    NoDependency deriving (Show, Eq)
+
+checkPreserving :: (Eq a) => a -> [a] -> OpDependency
+checkPreserving op preserving = if op `elem` preserving then Preserving else Nonpreserving
+
+unaryDependency :: (Eq a) => [a] -> a -> EntropicDependency -> EntropicDependency
+unaryDependency preservingOps op NoDependency = NoDependency
+unaryDependency preservingOps op exprDep =
+    let opDep = checkPreserving op preservingOps
+    in case opDep of
+        Preserving -> exprDep
+        Nonpreserving -> LowEntropy
+
+binaryDependency :: (Eq a) => [a] -> a -> EntropicDependency -> EntropicDependency -> EntropicDependency
+binaryDependency preservingOps op NoDependency NoDependency = NoDependency
+binaryDependency preservingOps op exprDep1 exprDep2 =
+    let opDep = checkPreserving op preservingOps
+    in case opDep of
+        Preserving -> combineDependencies exprDep1 exprDep2
+        Nonpreserving -> LowEntropy
+    where
+        combineDependencies :: EntropicDependency -> EntropicDependency -> EntropicDependency
+        combineDependencies Source dep = 
+            case dep of
+                Source -> Source
+                HighEntropy -> HighEntropy
+                LowEntropy -> LowEntropy
+                NoDependency -> Source
+        combineDependencies HighEntropy dep = 
+            case dep of
+                HighEntropy -> HighEntropy
+                LowEntropy -> LowEntropy
+                NoDependency -> HighEntropy
+                _ -> combineDependencies dep HighEntropy
+        combineDependencies LowEntropy dep = LowEntropy
+        combineDependencies NoDependency dep =
+            case dep of
+                NoDependency -> NoDependency
+                _ -> combineDependencies dep NoDependency
+
+assignmentOpDependency :: CAssignOp -> EntropicDependency -> EntropicDependency
+assignmentOpDependency = unaryDependency [CAssignOp, CXorAssOp, CAddAssOp, CMulAssOp, CSubAssOp]
+
+unaryOpDependency :: CUnaryOp -> EntropicDependency -> EntropicDependency
+unaryOpDependency = unaryDependency [CPreIncOp, CPreDecOp, CPostIncOp, CPostDecOp, CPlusOp, CMinOp, CCompOp, CNegOp]
+
+binaryOpDependency :: CBinaryOp -> EntropicDependency -> EntropicDependency -> EntropicDependency
+binaryOpDependency = binaryDependency [CMulOp, CAddOp, CSubOp, CXorOp]
 
 data InstrumentationState = IState 
     { 
@@ -260,24 +311,33 @@ instrumentStmt _ s = return s
 
 mkMaybeExpr c = maybe (return Nothing) (\x -> Just <$> instrumentExpr c RValue x)
 
+
+
 instrumentExpr :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav CExpr
-instrumentExpr c _ expr@(CAssign op lhs rhs node) = do
+instrumentExpr c side expr@(CAssign op lhs rhs node) = do
+        dependency <- assignmentOpDependency op <$> exprDependency c side rhs
+        when (dependency == Source) $ 
+            maybe (error "Could not find var of LHS when instrumenting a source expr") addToSources $ identOfExpr lhs
         let lhs' = setIndirections lhs
-        rhs' <- processRhs rhs
+            rhs' = processRhs dependency rhs
         return $ CAssign op lhs' rhs' node
     where
-    setIndirections var@(CVar id node) = CUnary CIndOp var node
-    setIndirections (CUnary CIndOp expr node) = setIndirections expr
-    setIndirections _ = error "Setting indirections failed"
+        setIndirections var@(CVar id node) = CUnary CIndOp var node
+        setIndirections (CIndex arr _ _) = setIndirections arr
+        setIndirections (CUnary CIndOp expr node) = setIndirections expr
+        setIndirections _ = error "Setting indirections failed"
+instrumentExpr c side (CComma exprs node) = do
+        exprs' <- mapM (instrumentExpr c side) exprs
+        return $ CComma exprs' node 
 instrumentExpr c side expr = return expr
 
-processRhs :: CExpr -> InstTrav CExpr
-processRhs rhs = do
-    dependency <- exprDependency rhs
+processRhs :: EntropicDependency -> CExpr -> CExpr
+processRhs dependency rhs =
     case dependency of
-        Preserving -> return $ makeStrConst "PRESERVING" rhs
-        Nonpreserving -> return $ makeStrConst "NON-PRESERVING" rhs
-        _ -> return rhs
+        Source      -> makeStrConst "SOURC" rhs
+        HighEntropy -> makeStrConst "HIGH ENTROPY" rhs
+        LowEntropy  -> makeStrConst "LOW ENTROPY" rhs
+        _           -> rhs
 
 makeStrConst :: String -> CExpr -> CExpr
 makeStrConst strConst expr = let node_info = nodeInfo expr 
@@ -307,8 +367,8 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
     instrumentDecl' decl@(CDecl declspecs [(Just declr, _init, _)] node) = do
         dependency <- declDependency decl
         case dependency of
-            Preserving -> return $ setStrConst "PRESERVING" decl
-            Nonpreserving -> return $ setStrConst "NON-PRESERVING" decl
+            HighEntropy -> return $ setStrConst "HIGH ENTROPY" decl
+            LowEntropy -> return $ setStrConst "LOW ENTROPY" decl
             Source -> case identOfDecl decl of
                         Nothing -> return decl
                         Just id -> do
@@ -320,15 +380,22 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
 
 annotatedSources = ["baz"]--["foo", "bar"]
 
-exprDependency :: CExpr -> InstTrav EntropicDependency
-exprDependency expr = do
+exprDependency :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav EntropicDependency
+exprDependency _ LValue _ = return NoDependency
+exprDependency c side (CCast declr expr _node) = exprDependency c side expr
+exprDependency c side (CSizeofExpr expr _node) = return LowEntropy
+exprDependency c side (CUnary op expr _node) = unaryOpDependency op <$> exprDependency c side expr
+exprDependency c side (CBinary op expr1 expr2 _node) = 
+    liftM2 (binaryOpDependency op) (exprDependency c side expr1) (exprDependency c side expr2)
+exprDependency c side (CConst _) = return NoDependency
+exprDependency c _ expr = do
         dTable <- getDefTable
         st <- getUserState
         let currentSources = sources st
             lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
         if null lookupAll 
         then return NoDependency 
-        else return Preserving
+        else return HighEntropy
 
 declDependency :: CDecl -> InstTrav EntropicDependency
 declDependency decl@(CDecl [typeSpecifier] 
@@ -350,7 +417,7 @@ declDependency decl@(CDecl [typeSpecifier]
                     lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
                 if null lookupAll 
                 then return NoDependency 
-                else return Preserving
+                else return HighEntropy
         isSource :: CDecl -> Bool
         isSource d@(CDecl typeSpecifier declr node_info) =
                 case identOfDecl d of 
@@ -363,3 +430,9 @@ identOfDecl :: CDecl -> Maybe Ident
 identOfDecl (CDecl _ declr _) = case declr of
                                     [(Just (CDeclr (Just id) _ _ _ _), _, _)] -> Just id
                                     _ -> Nothing
+
+identOfExpr :: CExpr -> Maybe Ident
+identOfExpr (CVar id _) = Just id
+identOfExpr (CUnary CIndOp expr _) = identOfExpr expr
+identOfExpr (CIndex arr _ _) = identOfExpr arr
+identOfExpr _ = Nothing
