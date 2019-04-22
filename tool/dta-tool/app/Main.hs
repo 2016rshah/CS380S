@@ -35,7 +35,8 @@ import Control.Monad
 
 type VarCount = (Int, Int)
 type Log = [String]
-type InstTrav = Trav InstrumentationState  
+type InstTrav = Trav InstrumentationState 
+type Taints = Map.Map Ident EntropicDependency
 
 data OpDependency =
     Preserving |
@@ -46,6 +47,14 @@ data EntropicDependency =
     HighEntropy |
     LowEntropy |
     NoDependency deriving (Show, Eq)
+
+instance Ord EntropicDependency where
+    compare x y = fromJust compared
+        where ordering = [LowEntropy, NoDependency, HighEntropy, Source]
+              compared = do
+                i <- elemIndex x ordering
+                j <- elemIndex y ordering
+                return $ compare i j
 
 checkPreserving :: (Eq a) => [a] -> a -> OpDependency
 checkPreserving preservingOps op = if op `elem` preservingOps then Preserving else Nonpreserving
@@ -97,7 +106,7 @@ functionCallDependency fnName = applyOpDependency (checkPreserving ["f"] fnName)
 data InstrumentationState = IState 
     { 
         notes :: Log, 
-        taints :: Map.Map Ident EntropicDependency,
+        taints :: Taints,
         transformedFns :: [(FunDef, FunDef)],
         ast :: CTranslUnit
     }
@@ -278,9 +287,18 @@ instrumentStmt c (CWhile guard body isDoWhile node) = do
     body' <- instrumentStmt c body
     return $ CWhile guard' body' isDoWhile node
 instrumentStmt c (CIf ifExpr thenStmt maybeElse node) = do
+    prevTaintMap <- getTaintMap
     ifExpr' <- instrumentExpr c RValue ifExpr
     thenStmt' <- instrumentStmt c thenStmt
-    maybeElse' <- maybe (return Nothing) (\x -> Just <$> instrumentStmt c x) maybeElse
+    thenTaintMap <- getTaintMap
+    maybeElse' <- case maybeElse of
+                    Nothing -> return Nothing
+                    Just elseExpr -> do
+                        setTaintMap prevTaintMap
+                        newElse <- instrumentStmt c elseExpr
+                        elseTaintMap <- getTaintMap
+                        setTaintMap $ Map.unionWith min thenTaintMap elseTaintMap
+                        return $ Just newElse
     return $ CIf ifExpr' thenStmt' maybeElse' node
 instrumentStmt c (CFor init expr2 expr3 stmt node) = do
     let mkExpr  e = Left <$> mkMaybeExpr c e
@@ -312,33 +330,35 @@ instrumentStmt _ s = return s
 
 mkMaybeExpr c = maybe (return Nothing) (\x -> Just <$> instrumentExpr c RValue x)
 
-
-
 instrumentExpr :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav CExpr
 instrumentExpr c side expr@(CAssign op lhs rhs node) = do
         dependency <- assignmentOpDependency op <$> exprDependency c side rhs
-        when (dependency == Source) $ 
-            maybe (error "Could not find var of LHS when instrumenting a source expr") (`addToTaints` Source) (identOfExpr lhs)
-        let lhs' = setIndirections lhs
+        let idLhs = fromJust $ identOfExpr lhs
+            lhs' = processLhs dependency lhs
             rhs' = processRhs dependency rhs
+        addToTaints idLhs dependency
         return $ CAssign op lhs' rhs' node
     where
         setIndirections var@(CVar id node) = CUnary CIndOp var node
         setIndirections (CIndex arr _ _) = setIndirections arr
         setIndirections (CUnary CIndOp expr node) = setIndirections expr
         setIndirections _ = error "Setting indirections failed"
+
+        processLhs NoDependency = id
+        processLhs dependency = setIndirections
+
+        processRhs NoDependency rhs = rhs
+        processRhs _ rhs@CCond{} = rhs
+        processRhs dependency rhs =
+            case dependency of
+                Source      -> makeStrConst "SOURCE" rhs
+                HighEntropy -> makeStrConst "HIGH ENTROPY" rhs
+                LowEntropy  -> makeStrConst "LOW ENTROPY" rhs
+                _           -> rhs
 instrumentExpr c side (CComma exprs node) = do
         exprs' <- mapM (instrumentExpr c side) exprs
         return $ CComma exprs' node 
 instrumentExpr c side expr = return expr
-
-processRhs :: EntropicDependency -> CExpr -> CExpr
-processRhs dependency rhs =
-    case dependency of
-        Source      -> makeStrConst "SOURCE" rhs
-        HighEntropy -> makeStrConst "HIGH ENTROPY" rhs
-        LowEntropy  -> makeStrConst "LOW ENTROPY" rhs
-        _           -> rhs
 
 makeStrConst :: String -> CExpr -> CExpr
 makeStrConst strConst expr = let node_info = nodeInfo expr 
@@ -379,7 +399,18 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
     instrumentDecl' decl@CDecl{} = return decl
     instrumentDecl' CStaticAssert{} = error "Tried to instrument a static assertion"
 
-annotatedSources = ["baz"]--["foo", "bar"]
+annotatedSources = ["foo", "baz"]--["foo", "bar"]
+
+getTaintValue :: Ident -> InstTrav EntropicDependency
+getTaintValue id = do
+    st <- getUserState
+    return $ Map.findWithDefault NoDependency id $ taints st
+
+getTaintMap :: InstTrav Taints
+getTaintMap = taints <$> getUserState
+
+setTaintMap :: Taints -> InstTrav ()
+setTaintMap tm = modifyUserState (\st -> st { taints = tm })
 
 exprDependency :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav EntropicDependency
 exprDependency _ LValue _ = return NoDependency
@@ -393,18 +424,17 @@ exprDependency c side (CComplexImag expr _node) = applyOpDep Nonpreserving <$> e
 exprDependency c side (CCall fn args _) = 
     let fnName = maybe "" identToString (identOfExpr fn)
     in functionCallDependency fnName <$> mapM (exprDependency c side) args
-exprDependency c _ (CVar id node) = do
-        dTable <- getDefTable
-        st <- getUserState
-        let currentSources = Map.keys $ taints st
-            lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
-        if null lookupAll 
-        then return NoDependency 
-        else return HighEntropy
+exprDependency c _ (CVar id node) = getTaintValue id
 exprDependency c side (CSizeofExpr expr _) = applyOpDep Nonpreserving <$> exprDependency c side expr
 exprDependency c side (CSizeofType declr _) = applyOpDep Nonpreserving <$> declDependency declr
 exprDependency c side (CAlignofExpr expr _) = applyOpDep Nonpreserving <$> exprDependency c side expr
 exprDependency c side (CAlignofType declr _) = applyOpDep Nonpreserving <$> declDependency declr
+exprDependency c side (CCond cond maybeTrueExpr falseExpr _node) = 
+    let falseExprDep = exprDependency c side falseExpr 
+        trueExprDep = case maybeTrueExpr of
+                        Just trueExpr -> exprDependency c side trueExpr
+                        Nothing -> return NoDependency
+    in liftM2 min falseExprDep trueExprDep
 exprDependency _ _ _ = return NoDependency
 
 declDependency :: CDecl -> InstTrav EntropicDependency
@@ -420,14 +450,7 @@ declDependency decl@(CDecl [typeSpecifier]
         calcDependency decl = 
             if isSource decl
             then return Source
-            else do
-                dTable <- getDefTable
-                st <- getUserState
-                let currentSources = Map.keys $ taints st
-                    lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
-                if null lookupAll 
-                then return NoDependency 
-                else return HighEntropy
+            else getTaintValue $ fromJust $ identOfDecl decl
         isSource :: CDecl -> Bool
         isSource d@(CDecl typeSpecifier declr node_info) =
                 case identOfDecl d of 
@@ -446,3 +469,12 @@ identOfExpr (CVar id _) = Just id
 identOfExpr (CUnary CIndOp expr _) = identOfExpr expr
 identOfExpr (CIndex arr _ _) = identOfExpr arr
 identOfExpr _ = Nothing
+
+
+-- dTable <- getDefTable
+-- st <- getUserState
+-- let currentSources = Map.keys $ taints st
+--     lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
+-- if null lookupAll 
+-- then return NoDependency 
+-- else return HighEntropy

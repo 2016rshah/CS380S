@@ -3,21 +3,23 @@ int main(int argc, char** argv) {
     *t = "zxcv";
     char** foo = t;
     char* bar = *t;
+    int b = 0;
+    char* camelCase = b ? bar : bar;
+    camelCase = b ? *foo : *foo;
     for (;;) {
         int baz;
         int zxcv = 34;
         zxcv = 3 + baz;
         zxcv &= baz + 3;
-        zxcv = 3 + 3;
-        baz = f(baz);
     }
     if (t == "qwer") {
         *t = "1234";
         return 1;
     } else if (t == "jklo") {
-        *bar = "dfgh";
+        *bar = *foo;
         return 0;
     } else {
+        *bar = 34;
         **foo = "xcvvcbn";
         return 2;
     }
@@ -30,6 +32,7 @@ int main(int argc, char** argv) {
         k++;
         *t = "jkl;";
     }
+    t = bar;
 }
 
 char* g() {
