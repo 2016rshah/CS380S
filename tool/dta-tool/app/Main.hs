@@ -76,7 +76,7 @@ combineDependencies Source dep =
         Source -> Source
         HighEntropy -> HighEntropy
         LowEntropy -> LowEntropy
-        NoDependency -> Source
+        NoDependency -> HighEntropy
 combineDependencies HighEntropy dep = 
     case dep of
         HighEntropy -> HighEntropy
@@ -102,23 +102,49 @@ binaryOpDependency op expr1 expr2 = applyOpDependency (checkPreserving [CMulOp, 
 functionCallDependency :: String -> [EntropicDependency] -> EntropicDependency
 functionCallDependency fnName = applyOpDependency (checkPreserving ["f"] fnName)
 
+data FunInstState = FIState 
+    {
+        ctx :: VarDecl, 
+        ogFnBody :: [CBlockItem], 
+        newFnBody ::[CBlockItem]
+    }
 
 data InstrumentationState = IState 
     { 
         notes :: Log, 
         taints :: Taints,
-        transformedFns :: [(FunDef, FunDef)],
+        functionContext :: FunInstState,
         ast :: CTranslUnit
     }
 
 instance Show InstrumentationState where
     show is = "Log: " ++ show (notes is) ++ "\n\n" ++
-                "Taint values: " ++ show (Map.mapKeys (show . pretty) (taints is)) ++ "\n\n" ++
-                "Transformed Functions: \n" ++ showFns (transformedFns is)
-        where showFns = concatMap (\(f, f') -> "\t" ++ (show . pretty) f ++ " -> " ++ (show . pretty) f' ++ "\n")
+                "Taint values: " ++ show (Map.mapKeys (show . pretty) (taints is)) ++ "\n\n" 
 
 instance Pretty Bool where
-    pretty = text . show 
+    pretty = text . show
+
+initFunInstStateWithContext c = FIState { ctx = c, ogFnBody = [], newFnBody = [] }
+initFunInstState = initFunInstStateWithContext $ VarDecl NoName (DeclAttrs noFunctionAttrs NoStorage noAttributes) voidType 
+
+resetFunContext c = modifyUserState $ \st -> st { functionContext = initFunInstStateWithContext c }
+reinitFunContext = resetFunContext $ VarDecl NoName (DeclAttrs noFunctionAttrs NoStorage noAttributes) voidType
+
+functionInstrumentationSetup :: VarDecl -> InstTrav ()
+functionInstrumentationSetup c = resetFunContext c >> enterFunctionScope
+
+functionInstrumentationFinalize :: InstTrav [CBlockItem]
+functionInstrumentationFinalize = do
+    leaveFunctionScope
+    body <- newFnBody . functionContext <$> getUserState
+    reinitFunContext
+    return body
+
+addNewBlockItem :: CBlockItem -> InstTrav ()
+addNewBlockItem item = do
+    ctxt <- functionContext <$> getUserState
+    let body = newFnBody ctxt
+    modifyUserState $ \st -> st { functionContext = ctxt { newFnBody = body ++ [item] } }
 
 initialPos :: String -> Position
 initialPos fileName = position 0 fileName 1 0 Nothing
@@ -135,9 +161,6 @@ log = modifyUserState . addToLog
 logPretty :: (Pretty a) => a -> InstTrav ()
 logPretty = modifyUserState . addPrettyToLog
 
-addTransformedFn :: (FunDef, FunDef) -> InstTrav ()
-addTransformedFn f = modifyUserState $ \is -> is { transformedFns = transformedFns is ++ [f] }
-
 addToTaints :: Ident -> EntropicDependency -> InstTrav ()
 addToTaints id t = modifyUserState $ \is -> is { taints = Map.insert id t (taints is) }
 
@@ -145,7 +168,7 @@ emptyInstState :: String -> InstrumentationState
 emptyInstState fileName = IState { 
                                     notes = [], 
                                     ast = CTranslUnit [] (OnlyPos pos (pos, 0)),
-                                    transformedFns = [],
+                                    functionContext = initFunInstState,
                                     taints = Map.empty
                                     }
     where pos = initialPos fileName 
@@ -252,14 +275,18 @@ instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
 instrumentFunctionBody :: NodeInfo -> VarDecl -> CStat -> InstTrav Stmt
 instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_body) =
     do 
-        enterFunctionScope
+        functionInstrumentationSetup decl
         mapM_ (withDefTable . defineLabel) (localLabels ++ getLabels s)
         defineParams node_info decl
         -- record parameters
-        items' <- mapM (instrumentBlockItem [FunCtx decl]) items
-        leaveFunctionScope
+        mapM_ (newBlockItem [FunCtx decl]) items
+        let id = declIdent decl
+        items' <- functionInstrumentationFinalize
         return $ CCompound localLabels items' node_info_body
 instrumentFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
+
+newBlockItem :: [StmtCtx] -> CBlockItem -> InstTrav ()
+newBlockItem c item = addNewBlockItem =<< instrumentBlockItem c item
 
 instrumentBlockItem :: [StmtCtx] -> CBlockItem -> InstTrav CBlockItem
 instrumentBlockItem _ (CBlockDecl d) = CBlockDecl <$> instrumentDecl True d 
@@ -334,31 +361,43 @@ instrumentExpr :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav CExpr
 instrumentExpr c side expr@(CAssign op lhs rhs node) = do
         dependency <- assignmentOpDependency op <$> exprDependency c side rhs
         let idLhs = fromJust $ identOfExpr lhs
-            lhs' = processLhs dependency lhs
-            rhs' = processRhs dependency rhs
         addToTaints idLhs dependency
-        return $ CAssign op lhs' rhs' node
+        case dependency of
+            HighEntropy -> do
+                let rhs' = processHighEntropyRhs rhs
+                    lhs' = setIndirections lhs
+                -- dt <- getDefTable
+                -- -- let t = maybe Nothing (lookupType dt) (nameOfNode (nodeInfo rhs))
+                -- -- t <- tExpr c side lhs
+                -- t <- tExpr c side expr
+                -- log $ show $ pretty t
+                return $ CAssign CAssignOp lhs' rhs' node
+            LowEntropy -> do
+                let rhs' = processLowEntropyRhs rhs
+                    lhs' = setIndirections lhs
+                return $ CAssign CAssignOp lhs' rhs' node
+            _ -> return expr
     where
         setIndirections var@(CVar id node) = CUnary CIndOp var node
         setIndirections (CIndex arr _ _) = setIndirections arr
         setIndirections (CUnary CIndOp expr node) = setIndirections expr
         setIndirections _ = error "Setting indirections failed"
 
-        processLhs NoDependency = id
-        processLhs dependency = setIndirections
+        processHighEntropyRhs rhs@CCond{} = rhs
+        processHighEntropyRhs rhs = makeStrConst "HIGH ENTROPY" rhs
 
-        processRhs NoDependency rhs = rhs
-        processRhs _ rhs@CCond{} = rhs
-        processRhs dependency rhs =
-            case dependency of
-                Source      -> makeStrConst "SOURCE" rhs
-                HighEntropy -> makeStrConst "HIGH ENTROPY" rhs
-                LowEntropy  -> makeStrConst "LOW ENTROPY" rhs
-                _           -> rhs
+        processLowEntropyRhs rhs@CCond{} = rhs
+        processLowEntropyRhs rhs = makeStrConst "LOW ENTROPY" rhs
 instrumentExpr c side (CComma exprs node) = do
         exprs' <- mapM (instrumentExpr c side) exprs
         return $ CComma exprs' node 
 instrumentExpr c side expr = return expr
+
+setNodeType :: (MonadTrav m) => NodeInfo -> Type -> m ()
+setNodeType node t = 
+    case nameOfNode node of
+        Just n -> withDefTable (\dt -> ((), insertType dt n t))
+        Nothing -> return ()
 
 makeStrConst :: String -> CExpr -> CExpr
 makeStrConst strConst expr = let node_info = nodeInfo expr 

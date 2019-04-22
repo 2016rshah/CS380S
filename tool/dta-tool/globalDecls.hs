@@ -830,14 +830,14 @@
                                        Name { nameId = 113 }))
                                  (CConst
                                     (CStrConst
-                                       "SOURCE"
+                                       "HIGH ENTROPY"
                                        (NodeInfo
                                           ("test2.c" : line 22)
-                                          ( "test2.c" : line 22 , 8 )
+                                          ( "test2.c" : line 22 , 14 )
                                           Name { nameId = 114 })))
                                  (NodeInfo
                                     ("test2.c" : line 22)
-                                    ( "test2.c" : line 22 , 8 )
+                                    ( "test2.c" : line 22 , 14 )
                                     Name { nameId = 115 })))
                            (NodeInfo
                               ("test2.c" : line 22)
@@ -847,7 +847,7 @@
                         (CExpr
                            (Just
                               (CAssign
-                                 CAndAssOp
+                                 CAssignOp
                                  (CUnary
                                     CIndOp
                                     (CVar
@@ -1030,14 +1030,14 @@
                                              Name { nameId = 144 }))
                                        (CConst
                                           (CStrConst
-                                             "SOURCE"
+                                             "HIGH ENTROPY"
                                              (NodeInfo
                                                 ("test2.c" : line 32)
-                                                ( "test2.c" : line 32 , 8 )
+                                                ( "test2.c" : line 32 , 14 )
                                                 Name { nameId = 145 })))
                                        (NodeInfo
                                           ("test2.c" : line 32)
-                                          ( "test2.c" : line 32 , 8 )
+                                          ( "test2.c" : line 32 , 14 )
                                           Name { nameId = 146 })))
                                  (NodeInfo
                                     ("test2.c" : line 32)
