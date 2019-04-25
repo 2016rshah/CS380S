@@ -133,8 +133,12 @@ reinitFunContext = resetFunContext $ VarDecl NoName (DeclAttrs noFunctionAttrs N
 functionInstrumentationSetup :: VarDecl -> InstTrav ()
 functionInstrumentationSetup c = resetFunContext c >> enterFunctionScope
 
-functionInstrumentationFinalize :: InstTrav ()
-functionInstrumentationFinalize = leaveFunctionScope >> reinitFunContext
+functionInstrumentationFinalize :: InstTrav [CBlockItem]
+functionInstrumentationFinalize = do
+    leaveFunctionScope
+    body <- newFnBody . functionContext <$> getUserState
+    reinitFunContext
+    return body
 
 addNewBlockItem :: CBlockItem -> InstTrav ()
 addNewBlockItem item = do
@@ -277,8 +281,7 @@ instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_b
         -- record parameters
         mapM_ (newBlockItem [FunCtx decl]) items
         let id = declIdent decl
-        items' <- newFnBody . functionContext <$> getUserState
-        functionInstrumentationFinalize
+        items' <- functionInstrumentationFinalize
         return $ CCompound localLabels items' node_info_body
 instrumentFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
 
