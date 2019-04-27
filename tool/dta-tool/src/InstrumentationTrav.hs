@@ -4,7 +4,8 @@ log, logPretty,
 addPreservingFn, addNonPreservingFn,
 getPreservingFns, getNonPreservingFns,
 addTransformedFn,
-addToTaints, getTaintValue, getTaintMap, setTaintMap
+addToTaints, getTaintValue, getTaintMap, setTaintMap, withTaintMap,
+enterBlockScope, leaveBlockScope, enterFunctionScope, leaveFunctionScope
 )
 where
 import Prelude hiding (log)
@@ -18,10 +19,13 @@ import Language.C.Data.Node
 import Language.C.Data.Position
 import Language.C.Data.Ident
 import Language.C.Analysis.SemRep
-import Language.C.Analysis.TravMonad
+import Language.C.Analysis.NameSpaceMap
+import Language.C.Analysis.TravMonad hiding (enterBlockScope, leaveBlockScope, enterFunctionScope, leaveFunctionScope)
+import qualified Language.C.Analysis.TravMonad as ST
 import Language.C.Pretty
 
 import qualified Data.Map as Map
+import Data.Maybe
 
 type InstTrav = Trav InstrumentationState 
 
@@ -47,15 +51,39 @@ addTransformedFn :: (FunDef, FunDef) -> InstTrav ()
 addTransformedFn f = modifyUserState $ \is -> is { transformedFns = transformedFns is ++ [f] }
 
 addToTaints :: Ident -> EntropicDependency -> InstTrav ()
-addToTaints id t = modifyUserState $ \is -> is { taints = Map.insert id t (taints is) }
+addToTaints id t = modifyUserState $ \is -> is { taints = fst (defLocal (taints is) id t) }
 
 getTaintValue :: Ident -> InstTrav EntropicDependency
 getTaintValue id = do
     st <- getUserState
-    return $ Map.findWithDefault NoDependency id $ taints st
+    let tv = fromMaybe NoDependency $ lookupName (taints st) id 
+    return tv
 
 getTaintMap :: InstTrav Taints
 getTaintMap = taints <$> getUserState
 
 setTaintMap :: Taints -> InstTrav ()
 setTaintMap tm = modifyUserState (\st -> st { taints = tm })
+
+withTaintMap :: (Taints -> Taints) -> InstTrav ()
+withTaintMap f = getTaintMap >>= setTaintMap . f
+
+-- scope manipulation
+
+enterNewTaintScope :: InstTrav ()
+enterNewTaintScope = withTaintMap enterNewScope
+
+leaveTaintScope :: InstTrav ()
+leaveTaintScope = withTaintMap (fst . leaveScope)
+
+enterBlockScope :: InstTrav ()
+enterBlockScope = enterNewTaintScope >> ST.enterBlockScope
+
+leaveBlockScope :: InstTrav ()
+leaveBlockScope = leaveTaintScope >> ST.leaveBlockScope
+
+enterFunctionScope :: InstTrav ()
+enterFunctionScope = enterNewTaintScope >> ST.enterFunctionScope
+
+leaveFunctionScope :: InstTrav ()
+leaveFunctionScope = leaveTaintScope >> ST.leaveFunctionScope

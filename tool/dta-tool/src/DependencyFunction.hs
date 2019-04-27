@@ -26,9 +26,6 @@ getDependencyFunction opDep returnType argTypes = do
             Nonpreserving -> getNonPreservingFns 
     let existingFn = find (matchFun returnType argTypes) fns
     case existingFn of
-        Just fn -> logPretty fn
-        Nothing -> log "no function found"
-    case existingFn of
         Just fn -> return $ declIdent fn
         Nothing -> do
             let numFns = length fns

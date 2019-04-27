@@ -18,9 +18,11 @@ import Language.C.Data.Ident
 import Language.C.Analysis.Export (exportDeclr, export)
 import Language.C.Analysis.AstAnalysis
 import Language.C.Analysis.DeclAnalysis
+import Language.C.Analysis.NameSpaceMap
 import Language.C.Analysis.SemRep
 import Language.C.Analysis.SemError
-import Language.C.Analysis.TravMonad hiding (maybeM)
+import Language.C.Analysis.TravMonad hiding (maybeM, enterFunctionScope, leaveFunctionScope, 
+                                             enterBlockScope, leaveBlockScope)
 import Language.C.Analysis.DefTable hiding (enterFunctionScope, leaveFunctionScope,
                                             enterBlockScope, leaveBlockScope)
 import Language.C.Pretty
@@ -148,7 +150,11 @@ instrumentStmt c (CIf ifExpr thenStmt maybeElse node) = do
                         setTaintMap prevTaintMap
                         newElse <- instrumentStmt c elseExpr
                         elseTaintMap <- getTaintMap
-                        setTaintMap $ Map.unionWith min thenTaintMap elseTaintMap
+                        let mergedTaintMap = mergeTaintMap combineDependenciesBranch thenTaintMap elseTaintMap
+                        setTaintMap mergedTaintMap 
+                        log $ prettyTaintMap thenTaintMap
+                        log $ prettyTaintMap elseTaintMap
+                        log $ prettyTaintMap mergedTaintMap
                         return $ Just newElse
     return $ CIf ifExpr' thenStmt' maybeElse' node
 instrumentStmt c (CFor init expr2 expr3 stmt node) = do
@@ -187,7 +193,7 @@ processRhs c op returnType (CCond cond maybeTrueExpr falseExpr _node) = do
                                 Just trueExpr -> (\(d,e) -> (d,Just e)) <$> processRhs c op returnType trueExpr
                                 Nothing -> return (NoDependency, Nothing) 
     (falseDep, falseExpr') <- processRhs c op returnType falseExpr
-    let dep = min trueDep falseDep
+    let dep = combineDependencies trueDep falseDep
         rhs' = CCond cond trueExpr' falseExpr' _node
     return (dep, rhs')
 processRhs c op returnType rhs = do
@@ -215,7 +221,9 @@ processAsgmt c op lhs rhs = do
     returnType <- tExpr c LValue lhs
     (dep, rhs') <- processRhs c op returnType rhs
     let idLhs = fromJust $ identOfExpr lhs
+    log $ "PROCESSASGMT: " ++ show (identToString idLhs, dep)
     addToTaints idLhs dep
+    log =<< prettyTaintMap <$> getTaintMap 
     return rhs'
 
 exprDependency :: CExpr -> InstTrav (EntropicDependency, [CExpr])
@@ -286,12 +294,13 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
             return $ setStrConst "SOURCE" decl
         else
             case init of
-                Nothing                         -> return decl
+                Nothing                         -> addToTaints id NoDependency >> return decl
                 Just (CInitExpr expr node_info) -> do
                     returnType <- tExpr [] RValue expr
                     (dep, expr') <- processRhs [] CAssignOp returnType expr
                     let init' = CInitExpr expr' node_info
                     addToTaints id dep
+                    log $ identToString id ++ ": " ++ show dep
                     return decl
     instrumentDecl' decl@CDecl{} = return decl
     instrumentDecl' CStaticAssert{} = error "Tried to instrument a static assertion"

@@ -1,19 +1,27 @@
 module EntropicDependency(
 Taints, OpDependency(..), EntropicDependency(..),
 applyOpDep,
-assignmentOpDependency, unaryOpDependency, binaryOpDependency, functionCallDependency
+assignmentOpDependency, unaryOpDependency, binaryOpDependency, functionCallDependency,
+combineDependencies, combineDependenciesBranch,
+mergeTaintMap
 )
 where
+import Utils
+
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
+import Language.C.Analysis.NameSpaceMap
 import Language.C.Data.Node
 import Language.C.Data.Ident
 
 import Data.Maybe
 import Data.List
-import qualified Data.Map as Map
 
-type Taints = Map.Map Ident EntropicDependency
+type Taints = NameSpaceMap Ident EntropicDependency
+type EntropyCombinator = EntropicDependency -> EntropicDependency -> EntropicDependency
+
+mergeTaintMap :: EntropyCombinator -> Taints -> Taints -> Taints
+mergeTaintMap = mergeNameSpaceWith
 
 data OpDependency =
     Preserving |
@@ -47,7 +55,17 @@ applyOpDependency opDep deps =
 
 applyOpDep opDep dep = applyOpDependency opDep [dep]
 
-combineDependencies :: EntropicDependency -> EntropicDependency -> EntropicDependency
+combineDependenciesBranch :: EntropyCombinator
+combineDependenciesBranch Source dep = HighEntropy
+combineDependenciesBranch HighEntropy dep = HighEntropy
+combineDependenciesBranch LowEntropy LowEntropy = LowEntropy
+combineDependenciesBranch LowEntropy dep = combineDependenciesBranch dep LowEntropy
+combineDependenciesBranch NoDependency dep =
+    case dep of
+        NoDependency -> NoDependency
+        _ -> combineDependenciesBranch dep NoDependency
+
+combineDependencies :: EntropyCombinator
 combineDependencies Source dep = 
     case dep of
         Source -> Source
