@@ -4,8 +4,8 @@ int main(int argc, char** argv) {
     char** foo = t;
     char* bar = *t;
     int b = 0;
-    // char* camelCase = b ? bar : bar;
-    // camelCase = b ? *foo : *foo;
+    char* camelCase = b ? bar : bar;
+    camelCase = b ? *foo : *foo;
     for (;;) {
         int baz;
         int zxcv = 34;

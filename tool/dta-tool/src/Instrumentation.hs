@@ -20,7 +20,7 @@ import Language.C.Analysis.AstAnalysis
 import Language.C.Analysis.DeclAnalysis
 import Language.C.Analysis.SemRep
 import Language.C.Analysis.SemError
-import Language.C.Analysis.TravMonad
+import Language.C.Analysis.TravMonad hiding (maybeM)
 import Language.C.Analysis.DefTable hiding (enterFunctionScope, leaveFunctionScope,
                                             enterBlockScope, leaveBlockScope)
 import Language.C.Pretty
@@ -181,27 +181,42 @@ instrumentStmt _ s = return s
 
 mkMaybeExpr c = maybe (return Nothing) (\x -> Just <$> instrumentExpr c RValue x)
 
-processAsgmt :: [StmtCtx] -> CAssignOp -> CExpr -> CExpr -> InstTrav CExpr
-processAsgmt _ _ _ rhs@CCond{} = return rhs
-processAsgmt c op lhs rhs = do
+processRhs :: [StmtCtx] -> CAssignOp -> Type -> CExpr -> InstTrav (EntropicDependency, CExpr)
+processRhs c op returnType (CCond cond maybeTrueExpr falseExpr _node) = do
+    (trueDep, trueExpr') <- case maybeTrueExpr of
+                                Just trueExpr -> (\(d,e) -> (d,Just e)) <$> processRhs c op returnType trueExpr
+                                Nothing -> return (NoDependency, Nothing) 
+    (falseDep, falseExpr') <- processRhs c op returnType falseExpr
+    let dep = min trueDep falseDep
+        rhs' = CCond cond trueExpr' falseExpr' _node
+    return (dep, rhs')
+processRhs c op returnType rhs = do
     (dep, vars) <- exprDependency rhs
     varTypes <- mapM typeOfVar vars
-    returnType <- tExpr c LValue lhs
     let varNames = map (identToString . fromJust . identOfExpr) vars
         dep' = assignmentOpDependency op dep
-        idLhs = fromJust $ identOfExpr lhs
-    rhs' <- case dep' of
-            NoDependency -> return rhs
-            Source -> return rhs
-            HighEntropy -> fnCall Preserving returnType vars varTypes
-            LowEntropy -> fnCall Nonpreserving returnType vars varTypes
-    addToTaints idLhs dep'
-    return rhs'
+    case dep' of
+        NoDependency -> return (dep', rhs)
+        Source -> return (dep', rhs)
+        HighEntropy -> do
+            fn <- fnCall Preserving returnType vars varTypes
+            return (dep', fn)
+        LowEntropy -> do
+            fn <- fnCall Nonpreserving returnType vars varTypes
+            return (dep', fn)
     where
         typeOfVar = tExpr c RValue
         fnCall depType returnType args argTypes = do
             fnId <- getDependencyFunction depType returnType argTypes
             return $ CCall (CVar fnId undefNode) args undefNode
+
+processAsgmt :: [StmtCtx] -> CAssignOp -> CExpr -> CExpr -> InstTrav CExpr
+processAsgmt c op lhs rhs = do
+    returnType <- tExpr c LValue lhs
+    (dep, rhs') <- processRhs c op returnType rhs
+    let idLhs = fromJust $ identOfExpr lhs
+    addToTaints idLhs dep
+    return rhs'
 
 exprDependency :: CExpr -> InstTrav (EntropicDependency, [CExpr])
 exprDependency (CCast declr expr _node) = exprDependency expr
@@ -224,15 +239,17 @@ exprDependency var@(CVar id node) = do
     dep <- getTaintValue id
     return (dep, [var])
 exprDependency (CSizeofExpr expr _) = singleOpDependency expr $ applyOpDep Nonpreserving
-exprDependency (CSizeofType declr _) = error "Not implemented yet"
 exprDependency (CAlignofExpr expr _) = singleOpDependency expr $ applyOpDep Nonpreserving
-exprDependency (CAlignofType declr _) = error "Not implemented yet"
-exprDependency (CCond cond maybeTrueExpr falseExpr _node) = error "Not implemented yet"
-    -- let falseExprDep = exprDependency c side falseExpr 
-    --     trueExprDep = case maybeTrueExpr of
-    --                     Just trueExpr -> exprDependency c side trueExpr
-    --                     Nothing -> return NoDependency
-    -- in liftM2 min falseExprDep trueExprDep
+exprDependency (CSizeofType declr _) = exprDependency (CAlignofType declr undefNode)
+exprDependency (CAlignofType declr _) = case identOfDecl declr of
+                                            Nothing -> return (NoDependency, [])
+                                            Just id -> (\t -> (t, [CVar id undefNode])) <$> getTaintValue id
+exprDependency (CCond cond maybeTrueExpr falseExpr _node) = do
+    (dep1, vars1) <- exprDependency falseExpr 
+    (dep2, vars2) <- case maybeTrueExpr of
+                    Just trueExpr -> exprDependency trueExpr
+                    Nothing -> return (NoDependency, [])
+    return (min dep1 dep2, vars1++vars2)
 exprDependency  _ = return (NoDependency, [])
 
 singleOpDependency :: CExpr -> (EntropicDependency -> EntropicDependency) -> InstTrav (EntropicDependency, [CExpr])
@@ -261,40 +278,31 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
 
     where
     instrumentDecl' :: CDecl -> InstTrav CDecl
-    instrumentDecl' decl@(CDecl declspecs [(Just declr, _init, _)] node) = do
-        dependency <- declDependency decl
-        case dependency of
-            HighEntropy -> return $ setStrConst "HIGH ENTROPY" decl
-            LowEntropy -> return $ setStrConst "LOW ENTROPY" decl
-            Source -> case identOfDecl decl of
-                        Nothing -> return decl
-                        Just id -> do
-                            addToTaints id Source
-                            return $ setStrConst "SOURCE" decl
-            _ -> return decl
+    instrumentDecl' decl@(CDecl declspecs [(Just declr, init, _)] node) = do
+        let id = fromJust $ identOfDecl decl
+        if isSource decl
+        then do
+            addToTaints id Source
+            return $ setStrConst "SOURCE" decl
+        else
+            case init of
+                Nothing                         -> return decl
+                Just (CInitExpr expr node_info) -> do
+                    returnType <- tExpr [] RValue expr
+                    (dep, expr') <- processRhs [] CAssignOp returnType expr
+                    let init' = CInitExpr expr' node_info
+                    addToTaints id dep
+                    return decl
     instrumentDecl' decl@CDecl{} = return decl
     instrumentDecl' CStaticAssert{} = error "Tried to instrument a static assertion"
 
 annotatedSources = ["foo", "baz"]--["foo", "bar"]
+-- the type of sources is char*
+sourceType = PtrType (DirectType (TyIntegral TyChar) noTypeQuals noAttributes) noTypeQuals noAttributes
 
-declDependency :: CDecl -> InstTrav EntropicDependency
-declDependency decl@(CDecl [typeSpecifier] 
-                     [(Just declr, expr, size)] -- TODO: support for InitializerLists?
-                     node_info2) =
-                        case expr of
-                            Just (CInitExpr expr node_info) -> calcDependency decl
-                            Nothing                         -> calcDependency decl
-                            _                               -> return NoDependency
-                        
-    where
-        calcDependency decl = 
-            if isSource decl
-            then return Source
-            else getTaintValue $ fromJust $ identOfDecl decl
-        isSource :: CDecl -> Bool
-        isSource d@(CDecl typeSpecifier declr node_info) =
-                case identOfDecl d of 
-                    Just (Ident name _ _) -> name `elem` annotatedSources
-                    Nothing               -> False
-        isSource _ = False
-declDependency _ = return NoDependency
+isSource :: CDecl -> Bool
+isSource d@(CDecl typeSpecifier declr node_info) =
+        case identOfDecl d of 
+            Just (Ident name _ _) -> name `elem` annotatedSources
+            Nothing               -> False
+isSource _ = False
