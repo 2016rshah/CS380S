@@ -13,12 +13,13 @@ import Language.C.Analysis.AstAnalysis
 import Language.C.Analysis.SemError
 import Language.C.Analysis.DeclAnalysis
 import Language.C.Analysis.TypeUtils
+import Language.C.Analysis.TypeCheck
 import Language.C.Syntax.Utils
 import Language.C.Analysis.DefTable hiding (enterFunctionScope, leaveFunctionScope,
                                             enterBlockScope, leaveBlockScope)
 import Language.C.Analysis.TravMonad
 import Language.C.Analysis.SemRep
-import Language.C.Analysis.Export
+import Language.C.Analysis.Export (exportDeclr, export)
 import Language.C.System.GCC
 import Language.C.Parser
 import Language.C.Pretty
@@ -32,6 +33,15 @@ import Data.List
 import Data.Maybe 
 import qualified Data.Map as Map
 import Control.Monad
+
+-- we want some canonical ordering of types for the generation of 
+-- preserving/non-preserving functions; here we just use lexicographical
+instance Eq Type where
+    (==) x y = pType x == pType y
+
+instance Ord Type where
+    compare x y = compare (pType x) (pType y)
+
 
 type VarCount = (Int, Int)
 type Log = [String]
@@ -47,6 +57,8 @@ data EntropicDependency =
     HighEntropy |
     LowEntropy |
     NoDependency deriving (Show, Eq)
+
+data DependencyFunction = DepFun Type [Type]
 
 instance Ord EntropicDependency where
     compare x y = fromJust compared
@@ -76,7 +88,7 @@ combineDependencies Source dep =
         Source -> Source
         HighEntropy -> HighEntropy
         LowEntropy -> LowEntropy
-        NoDependency -> Source
+        NoDependency -> HighEntropy
 combineDependencies HighEntropy dep = 
     case dep of
         HighEntropy -> HighEntropy
@@ -108,6 +120,8 @@ data InstrumentationState = IState
         notes :: Log, 
         taints :: Taints,
         transformedFns :: [(FunDef, FunDef)],
+        preservingFns :: [Decl],
+        nonPreservingFns :: [Decl],
         ast :: CTranslUnit
     }
 
@@ -135,6 +149,12 @@ log = modifyUserState . addToLog
 logPretty :: (Pretty a) => a -> InstTrav ()
 logPretty = modifyUserState . addPrettyToLog
 
+addPreservingFn :: Decl -> InstTrav ()
+addPreservingFn f = modifyUserState $ \is -> is { preservingFns = preservingFns is ++ [f] }
+
+addNonPreservingFn :: Decl -> InstTrav ()
+addNonPreservingFn f = modifyUserState $ \is -> is { nonPreservingFns = nonPreservingFns is ++ [f] }
+
 addTransformedFn :: (FunDef, FunDef) -> InstTrav ()
 addTransformedFn f = modifyUserState $ \is -> is { transformedFns = transformedFns is ++ [f] }
 
@@ -146,9 +166,60 @@ emptyInstState fileName = IState {
                                     notes = [], 
                                     ast = CTranslUnit [] (OnlyPos pos (pos, 0)),
                                     transformedFns = [],
-                                    taints = Map.empty
+                                    taints = Map.empty,
+                                    preservingFns = [],
+                                    nonPreservingFns = []
                                     }
     where pos = initialPos fileName 
+
+makeDependencyFunction :: String -> Type -> [Type] -> InstTrav Decl
+makeDependencyFunction fnName returnType argTypes = do
+    name <- genName
+    let pos = nopos
+        id = mkIdent pos fnName name
+        nodeInfo = mkNodeInfo pos name
+        attrs = noAttributes
+        declattrs = DeclAttrs noFunctionAttrs (FunLinkage ExternalLinkage) attrs
+        functionType = makeFunType returnType argTypes 
+        varname = VarName id Nothing
+        vardecl = VarDecl varname declattrs functionType
+    return $ Decl vardecl nodeInfo
+
+getDependencyFunction :: OpDependency -> Type -> [Type] -> InstTrav Ident
+getDependencyFunction opDep returnType argTypes = do
+    fns <- (case opDep of
+            Preserving -> preservingFns 
+            Nonpreserving -> nonPreservingFns) <$> getUserState
+    let existingFn = find (matchFun returnType argTypes) fns
+    case existingFn of
+        Just fn -> logPretty fn
+        Nothing -> log "no function found"
+    case existingFn of
+        Just fn -> return $ declIdent fn
+        Nothing -> do
+            let numFns = length fns
+                fnName = case opDep of
+                            Preserving -> "preserving" ++ show numFns
+                            Nonpreserving -> "nonpreserving" ++ show numFns
+            fn <- makeDependencyFunction fnName returnType argTypes
+            case opDep of
+                Preserving -> addPreservingFn fn
+                Nonpreserving -> addNonPreservingFn fn
+            let id = declIdent fn
+            withDefTable $ defineGlobalIdent id (Declaration fn)
+            return id
+    where matchFun returnType argTypes fundecl =
+            let funType = makeFunType returnType argTypes
+            in sameType funType (declType fundecl)
+
+makeFunType :: Type -> [Type] -> Type
+makeFunType returnType argTypes =
+    let funtype = FunType returnType params False
+        params = map paramFn argTypes
+        paramFn t = ParamDecl (VarDecl NoName (DeclAttrs noFunctionAttrs NoStorage noAttributes) t) undefNode
+        attrs = noAttributes
+    in FunctionType funtype attrs
+
 
 main :: IO ()
 main = do
@@ -185,6 +256,7 @@ instrumentationTraversal (CTranslUnit decls _file_node) = do
     mapRecoverM_ instrumentExt decls
     -- check we are in global scope afterwards
     dTable <- getDefTable
+    -- log $ show $ Map.keys $ gObjs $ globalDefs dTable
     getDefTable >>= (\dt -> unless (inFileScope dt) $ error "Internal Error: Not in filescope after analysis")
     -- get the global definition table and export to an AST
     export . globalDefs <$> getDefTable
@@ -330,31 +402,70 @@ instrumentStmt _ s = return s
 
 mkMaybeExpr c = maybe (return Nothing) (\x -> Just <$> instrumentExpr c RValue x)
 
+processAsgmt :: [StmtCtx] -> CAssignOp -> CExpr -> CExpr -> InstTrav CExpr
+processAsgmt _ _ _ rhs@CCond{} = return rhs
+processAsgmt c op lhs rhs = do
+    (dep, vars) <- exprDependency rhs
+    varTypes <- mapM typeOfVar vars
+    returnType <- tExpr c LValue lhs
+    let varNames = map (identToString . fromJust . identOfExpr) vars
+        dep' = assignmentOpDependency op dep
+        idLhs = fromJust $ identOfExpr lhs
+    rhs' <- case dep' of
+            NoDependency -> return rhs
+            Source -> return rhs
+            HighEntropy -> fnCall Preserving returnType vars varTypes
+            LowEntropy -> fnCall Nonpreserving returnType vars varTypes
+    addToTaints idLhs dep'
+    return rhs'
+    where
+        typeOfVar = tExpr c RValue
+        fnCall depType returnType args argTypes = do
+            fnId <- getDependencyFunction depType returnType argTypes
+            return $ CCall (CVar fnId undefNode) args undefNode
+
+exprDependency :: CExpr -> InstTrav (EntropicDependency, [CExpr])
+exprDependency (CCast declr expr _node) = exprDependency expr
+exprDependency (CUnary op expr _node) = singleOpDependency expr $ unaryOpDependency op
+exprDependency (CBinary op expr1 expr2 _node) = do
+    (dep1, vars1) <- exprDependency expr1
+    (dep2, vars2) <- exprDependency expr2
+    let dep' = binaryOpDependency op dep1 dep2
+    return (dep', vars1 ++ vars2)
+exprDependency (CConst _) = return (NoDependency, [])
+exprDependency (CComplexReal expr _node) = singleOpDependency expr $ applyOpDep Preserving
+exprDependency (CComplexImag expr _node) = singleOpDependency expr $ applyOpDep Nonpreserving
+exprDependency (CCall fn args _) = do
+    (deps, varss) <- unzip <$> mapM exprDependency args
+    let fnName = maybe "" identToString (identOfExpr fn)
+        dep' = functionCallDependency fnName deps
+        vars = concat varss
+    return (dep', vars)
+exprDependency var@(CVar id node) = do
+    dep <- getTaintValue id
+    return (dep, [var])
+exprDependency (CSizeofExpr expr _) = singleOpDependency expr $ applyOpDep Nonpreserving
+exprDependency (CSizeofType declr _) = error "Not implemented yet"
+exprDependency (CAlignofExpr expr _) = singleOpDependency expr $ applyOpDep Nonpreserving
+exprDependency (CAlignofType declr _) = error "Not implemented yet"
+exprDependency (CCond cond maybeTrueExpr falseExpr _node) = error "Not implemented yet"
+    -- let falseExprDep = exprDependency c side falseExpr 
+    --     trueExprDep = case maybeTrueExpr of
+    --                     Just trueExpr -> exprDependency c side trueExpr
+    --                     Nothing -> return NoDependency
+    -- in liftM2 min falseExprDep trueExprDep
+exprDependency  _ = return (NoDependency, [])
+
+singleOpDependency :: CExpr -> (EntropicDependency -> EntropicDependency) -> InstTrav (EntropicDependency, [CExpr])
+singleOpDependency expr depFn = do
+    (dep, vars) <- exprDependency expr
+    let dep' = depFn dep
+    return (dep', vars)
+
 instrumentExpr :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav CExpr
 instrumentExpr c side expr@(CAssign op lhs rhs node) = do
-        dependency <- assignmentOpDependency op <$> exprDependency c side rhs
-        let idLhs = fromJust $ identOfExpr lhs
-            lhs' = processLhs dependency lhs
-            rhs' = processRhs dependency rhs
-        addToTaints idLhs dependency
-        return $ CAssign op lhs' rhs' node
-    where
-        setIndirections var@(CVar id node) = CUnary CIndOp var node
-        setIndirections (CIndex arr _ _) = setIndirections arr
-        setIndirections (CUnary CIndOp expr node) = setIndirections expr
-        setIndirections _ = error "Setting indirections failed"
-
-        processLhs NoDependency = id
-        processLhs dependency = setIndirections
-
-        processRhs NoDependency rhs = rhs
-        processRhs _ rhs@CCond{} = rhs
-        processRhs dependency rhs =
-            case dependency of
-                Source      -> makeStrConst "SOURCE" rhs
-                HighEntropy -> makeStrConst "HIGH ENTROPY" rhs
-                LowEntropy  -> makeStrConst "LOW ENTROPY" rhs
-                _           -> rhs
+        rhs' <- processAsgmt c op lhs rhs
+        return $ CAssign CAssignOp lhs rhs' node
 instrumentExpr c side (CComma exprs node) = do
         exprs' <- mapM (instrumentExpr c side) exprs
         return $ CComma exprs' node 
@@ -412,31 +523,6 @@ getTaintMap = taints <$> getUserState
 setTaintMap :: Taints -> InstTrav ()
 setTaintMap tm = modifyUserState (\st -> st { taints = tm })
 
-exprDependency :: [StmtCtx] -> ExprSide -> CExpr -> InstTrav EntropicDependency
-exprDependency _ LValue _ = return NoDependency
-exprDependency c side (CCast declr expr _node) = exprDependency c side expr
-exprDependency c side (CUnary op expr _node) = unaryOpDependency op <$> exprDependency c side expr
-exprDependency c side (CBinary op expr1 expr2 _node) = 
-    liftM2 (binaryOpDependency op) (exprDependency c side expr1) (exprDependency c side expr2)
-exprDependency c side (CConst _) = return NoDependency
-exprDependency c side (CComplexReal expr _node) = applyOpDep Preserving <$> exprDependency c side expr
-exprDependency c side (CComplexImag expr _node) = applyOpDep Nonpreserving <$> exprDependency c side expr
-exprDependency c side (CCall fn args _) = 
-    let fnName = maybe "" identToString (identOfExpr fn)
-    in functionCallDependency fnName <$> mapM (exprDependency c side) args
-exprDependency c _ (CVar id node) = getTaintValue id
-exprDependency c side (CSizeofExpr expr _) = applyOpDep Nonpreserving <$> exprDependency c side expr
-exprDependency c side (CSizeofType declr _) = applyOpDep Nonpreserving <$> declDependency declr
-exprDependency c side (CAlignofExpr expr _) = applyOpDep Nonpreserving <$> exprDependency c side expr
-exprDependency c side (CAlignofType declr _) = applyOpDep Nonpreserving <$> declDependency declr
-exprDependency c side (CCond cond maybeTrueExpr falseExpr _node) = 
-    let falseExprDep = exprDependency c side falseExpr 
-        trueExprDep = case maybeTrueExpr of
-                        Just trueExpr -> exprDependency c side trueExpr
-                        Nothing -> return NoDependency
-    in liftM2 min falseExprDep trueExprDep
-exprDependency _ _ _ = return NoDependency
-
 declDependency :: CDecl -> InstTrav EntropicDependency
 declDependency decl@(CDecl [typeSpecifier] 
                      [(Just declr, expr, size)] -- TODO: support for InitializerLists?
@@ -469,12 +555,3 @@ identOfExpr (CVar id _) = Just id
 identOfExpr (CUnary CIndOp expr _) = identOfExpr expr
 identOfExpr (CIndex arr _ _) = identOfExpr arr
 identOfExpr _ = Nothing
-
-
--- dTable <- getDefTable
--- st <- getUserState
--- let currentSources = Map.keys $ taints st
---     lookupAll = mapMaybe (`lookupIdent` dTable) currentSources
--- if null lookupAll 
--- then return NoDependency 
--- else return HighEntropy

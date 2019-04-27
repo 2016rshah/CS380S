@@ -4,8 +4,8 @@ int main(int argc, char** argv) {
     char** foo = t;
     char* bar = *t;
     int b = 0;
-    char* camelCase = b ? bar : bar;
-    camelCase = b ? *foo : *foo;
+    // char* camelCase = b ? bar : bar;
+    // camelCase = b ? *foo : *foo;
     for (;;) {
         int baz;
         int zxcv = 34;
@@ -16,11 +16,11 @@ int main(int argc, char** argv) {
         *t = "1234";
         return 1;
     } else if (t == "jklo") {
-        *bar = *foo;
+        bar = *foo;
         return 0;
     } else {
         *bar = 34;
-        **foo = "xcvvcbn";
+        // **foo = "xcvvcbn";
         return 2;
     }
     for (int i = 0; i < 10; i++) {
@@ -42,3 +42,5 @@ char* g() {
 int f(int k) {
     return k;
 }
+
+extern void h();
