@@ -5,13 +5,13 @@ emptyInstState
 )
 where
 import EntropicDependency
+import TaintMap
 
 import Language.C.Data.Position
 import Language.C.Data.Node
 import Language.C.Data.Ident
 import Language.C.Syntax.AST
 import Language.C.Analysis.SemRep
-import Language.C.Analysis.NameSpaceMap
 import Language.C.Analysis.AstAnalysis
 import Language.C.Pretty
 
@@ -22,7 +22,7 @@ type Log = [String]
 data InstrumentationState = IState 
     { 
         notes :: Log, 
-        taints :: Taints,
+        taints :: TaintMap,
         transformedFns :: [(FunDef, FunDef)],
         preservingFns :: [Decl],
         nonPreservingFns :: [Decl],
@@ -31,7 +31,7 @@ data InstrumentationState = IState
 
 instance Show InstrumentationState where
     show is = "Log: " ++ show (notes is) ++ "\n\n" ++
-                "Taint values: " ++ show (Map.mapKeys (show . pretty) (globalNames (taints is))) ++ "\n\n" ++
+                "Taint values: " ++ show (Map.mapKeys (show . pretty) (globalTaints (taints is))) ++ "\n\n" ++
                 "Transformed Functions: \n" ++ showFns (transformedFns is)
         where showFns = concatMap (\(f, f') -> "\t" ++ (show . pretty) f ++ " -> " ++ (show . pretty) f' ++ "\n")
 
@@ -46,7 +46,7 @@ emptyInstState fileName = IState {
                                     notes = [], 
                                     ast = CTranslUnit [] (OnlyPos pos (pos, 0)),
                                     transformedFns = [],
-                                    taints = nameSpaceMap :: Taints,
+                                    taints = taintMap,
                                     preservingFns = [],
                                     nonPreservingFns = []
                                     }

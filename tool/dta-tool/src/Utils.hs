@@ -1,8 +1,6 @@
 module Utils(
 makeStrConst, setStrConst,
 identOfDecl, identOfExpr,
-mergeNameSpaceWith,
-prettyTaintMap
 )
 where
 import Language.C.Syntax.AST
@@ -13,7 +11,6 @@ import Language.C.Analysis.NameSpaceMap
 
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Control.Arrow
 
 makeStrConst :: String -> CExpr -> CExpr
 makeStrConst strConst expr = let node_info = nodeInfo expr 
@@ -39,41 +36,3 @@ identOfExpr (CVar id _) = Just id
 identOfExpr (CUnary CIndOp expr _) = identOfExpr expr
 identOfExpr (CIndex arr _ _) = identOfExpr arr
 identOfExpr _ = Nothing
-
-prettyTaintMap nsm =  map (first identToString) $ nsMapToList nsm
-
--- due to the fact that the Language.C interface doesn't expose the NameSpaceMap constructor, 
--- we have to rewrite this functionality
-mergeNameSpaceWith :: (Ord k) => (a -> a -> a) -> NameSpaceMap k a -> NameSpaceMap k a -> NameSpaceMap k a
-mergeNameSpaceWith mergeFn nsmap1 nsmap2 =
-    let global1 = globalNames nsmap1
-        global2 = globalNames nsmap2
-        local1 = localNames nsmap1
-        local2 = localNames nsmap2
-        global = Map.unionWith mergeFn global1 global2
-        local = zipWith localUnion local1 local2
-        nsm = addGlobals nameSpaceMap global
-        nsm' = addLocals nsm local
-    in addLocals nsm' local
-    where 
-        localUnion [] ls2 = ls2
-        localUnion ls1 [] = ls1
-        localUnion l1 l2 =
-            let m1 = Map.fromList l1
-                m2 = Map.fromList l2
-                m = Map.unionWith mergeFn m1 m2
-            in Map.assocs m
-
-        addGlobals :: (Ord k) => NameSpaceMap k v -> Map.Map k v -> NameSpaceMap k v
-        addGlobals nsm globals = 
-            let kvs = Map.assocs globals
-                f (k,v) m = fst $ defGlobal m k v 
-            in foldr f nsm kvs
-        
-        addLocals :: (Ord k) => NameSpaceMap k v -> [[(k,v)]] -> NameSpaceMap k v
-        addLocals nsm [] = nsm
-        addLocals nsm (l:ls) = 
-            let nsm' = enterNewScope nsm
-                f (k,v) m = fst $ defLocal m k v
-            in addLocals (foldr f nsm' l) ls
-    

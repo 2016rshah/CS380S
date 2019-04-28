@@ -12,6 +12,7 @@ import Prelude hiding (log)
 
 import EntropicDependency
 import InstrumentationState
+import TaintMap
 
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
@@ -19,7 +20,6 @@ import Language.C.Data.Node
 import Language.C.Data.Position
 import Language.C.Data.Ident
 import Language.C.Analysis.SemRep
-import Language.C.Analysis.NameSpaceMap
 import Language.C.Analysis.TravMonad hiding (enterBlockScope, leaveBlockScope, enterFunctionScope, leaveFunctionScope)
 import qualified Language.C.Analysis.TravMonad as ST
 import Language.C.Pretty
@@ -51,7 +51,7 @@ addTransformedFn :: (FunDef, FunDef) -> InstTrav ()
 addTransformedFn f = modifyUserState $ \is -> is { transformedFns = transformedFns is ++ [f] }
 
 addToTaints :: Ident -> EntropicDependency -> InstTrav ()
-addToTaints id t = modifyUserState $ \is -> is { taints = fst (defLocal (taints is) id t) }
+addToTaints id t = modifyUserState $ \is -> is { taints = defLocal (taints is) id t }
 
 getTaintValue :: Ident -> InstTrav EntropicDependency
 getTaintValue id = do
@@ -59,13 +59,13 @@ getTaintValue id = do
     let tv = fromMaybe NoDependency $ lookupName (taints st) id 
     return tv
 
-getTaintMap :: InstTrav Taints
+getTaintMap :: InstTrav TaintMap
 getTaintMap = taints <$> getUserState
 
-setTaintMap :: Taints -> InstTrav ()
+setTaintMap :: TaintMap -> InstTrav ()
 setTaintMap tm = modifyUserState (\st -> st { taints = tm })
 
-withTaintMap :: (Taints -> Taints) -> InstTrav ()
+withTaintMap :: (TaintMap -> TaintMap) -> InstTrav ()
 withTaintMap f = getTaintMap >>= setTaintMap . f
 
 -- scope manipulation

@@ -1,9 +1,8 @@
 module EntropicDependency(
-Taints, OpDependency(..), EntropicDependency(..),
+EntropyCombinator, OpDependency(..), EntropicDependency(..),
 applyOpDep,
 assignmentOpDependency, unaryOpDependency, binaryOpDependency, functionCallDependency,
 combineDependencies, combineDependenciesBranch,
-mergeTaintMap
 )
 where
 import Utils
@@ -17,11 +16,7 @@ import Language.C.Data.Ident
 import Data.Maybe
 import Data.List
 
-type Taints = NameSpaceMap Ident EntropicDependency
 type EntropyCombinator = EntropicDependency -> EntropicDependency -> EntropicDependency
-
-mergeTaintMap :: EntropyCombinator -> Taints -> Taints -> Taints
-mergeTaintMap = mergeNameSpaceWith
 
 data OpDependency =
     Preserving |

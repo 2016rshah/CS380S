@@ -8,6 +8,7 @@ import Utils
 import EntropicDependency
 import DependencyFunction
 import InstrumentationTrav
+import TaintMap
 
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
@@ -18,7 +19,6 @@ import Language.C.Data.Ident
 import Language.C.Analysis.Export (exportDeclr, export)
 import Language.C.Analysis.AstAnalysis
 import Language.C.Analysis.DeclAnalysis
-import Language.C.Analysis.NameSpaceMap
 import Language.C.Analysis.SemRep
 import Language.C.Analysis.SemError
 import Language.C.Analysis.TravMonad hiding (maybeM, enterFunctionScope, leaveFunctionScope, 
