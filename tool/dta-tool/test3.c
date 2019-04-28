@@ -3,10 +3,8 @@ int main(int argc, char** argv) {
     char* bar;
     if (true) {
         bar = *foo;
-    } else if (false) {
-        *bar = 't';
     } else {
-        2+2;
+        *bar = 't';
     }
     char* t = bar;
 }

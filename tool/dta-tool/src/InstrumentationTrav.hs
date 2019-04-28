@@ -4,7 +4,7 @@ log, logPretty,
 addPreservingFn, addNonPreservingFn,
 getPreservingFns, getNonPreservingFns,
 addTransformedFn,
-addToTaints, getTaintValue, getTaintMap, setTaintMap, withTaintMap,
+addToTaints, updateTaint, getTaintValue, getTaintMap, setTaintMap, withTaintMap,
 enterBlockScope, leaveBlockScope, enterFunctionScope, leaveFunctionScope
 )
 where
@@ -53,10 +53,13 @@ addTransformedFn f = modifyUserState $ \is -> is { transformedFns = transformedF
 addToTaints :: Ident -> EntropicDependency -> InstTrav ()
 addToTaints id t = modifyUserState $ \is -> is { taints = defLocal (taints is) id t }
 
+updateTaint :: Ident -> EntropicDependency -> InstTrav ()
+updateTaint id t = modifyUserState $ \is -> is { taints = snd (updateLocal (taints is) id t) }
+
 getTaintValue :: Ident -> InstTrav EntropicDependency
 getTaintValue id = do
     st <- getUserState
-    let tv = fromMaybe NoDependency $ lookupName (taints st) id 
+    let tv = fromMaybe NoDependency $ lookupTaint (taints st) id 
     return tv
 
 getTaintMap :: InstTrav TaintMap

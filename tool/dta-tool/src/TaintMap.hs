@@ -8,7 +8,7 @@ enterNewScope, leaveScope,
 defGlobal, updateGlobalWith,
 defLocal, updateLocal,
 updateLocalWith,
-lookupName
+lookupTaint
 )
 where
 import Utils
@@ -46,23 +46,23 @@ enterNewScope :: TaintMap -> TaintMap
 enterNewScope (TaintMap gt lt) = TaintMap gt (Map.empty:lt)
 
 leaveScope :: TaintMap -> (TaintMap, Map.Map Ident EntropicDependency)
-leaveScope (TaintMap gt []) = error "Leaving scope without an inner scope to pop"
+leaveScope (TaintMap gt []) = error "TaintMap.leaveScope: no local scope!"
 leaveScope (TaintMap gt (l:lt)) = (TaintMap gt lt, l)
 
 defLocal :: TaintMap -> Ident -> EntropicDependency -> TaintMap
 defLocal tm@(TaintMap gt []) id dep = defGlobal tm id dep
-defLocal (TaintMap gt (l:lt)) id dep = let l' = Map.insert id dep l' in TaintMap gt (l':lt)
+defLocal (TaintMap gt (l:lt)) id dep = let l' = Map.insert id dep l in TaintMap gt (l':lt)
 
 updateLocal :: TaintMap -> Ident -> EntropicDependency -> (Maybe EntropicDependency, TaintMap)
 updateLocal = updateLocalWith (\_ v -> v) 
 
 updateGlobalWith :: EntropyCombinator -> TaintMap -> Ident -> EntropicDependency -> (Maybe EntropicDependency, TaintMap)
-updateGlobalWith comb (TaintMap gt lt) ident dep = let (result,gt') = updateMapWith comb ident dep gt
+updateGlobalWith comb (TaintMap gt lt) ident dep = let (result, gt') = updateMapWith comb ident dep gt
                                                    in (result, TaintMap gt' lt)
 
 updateLocalWith :: EntropyCombinator -> TaintMap -> Ident -> EntropicDependency -> (Maybe EntropicDependency, TaintMap)
 updateLocalWith comb tm@(TaintMap gt []) ident dep = updateGlobalWith comb tm ident dep
-updateLocalWith comb (TaintMap gt (l:lt)) ident dep = let (result, l') = updateMapWith comb ident dep l'
+updateLocalWith comb (TaintMap gt (l:lt)) ident dep = let (result, l') = updateMapWith comb ident dep l
                                                     in case result of
                                                         Just _ -> (result, TaintMap gt (l':lt))
                                                         Nothing -> updateLocalWith comb (TaintMap gt lt) ident dep
@@ -70,8 +70,8 @@ updateLocalWith comb (TaintMap gt (l:lt)) ident dep = let (result, l') = updateM
 updateMapWith :: (Ord k) => (v -> v -> v) -> k -> v -> Map.Map k v -> (Maybe v, Map.Map k v)
 updateMapWith f = Map.insertLookupWithKey (const f)
 
-lookupName :: TaintMap -> Ident -> Maybe EntropicDependency
-lookupName tm id = fst $ updateLocalWith const tm id NoDependency
+lookupTaint :: TaintMap -> Ident -> Maybe EntropicDependency
+lookupTaint tm id = fst $ updateLocalWith const tm id NoDependency
 
 mergeTaintMap :: EntropyCombinator -> TaintMap -> TaintMap -> TaintMap
 mergeTaintMap comb (TaintMap gt1 lt1) (TaintMap gt2 lt2) =

@@ -148,10 +148,12 @@ instrumentStmt c (CIf ifExpr thenStmt maybeElse node) = do
                     Nothing -> return Nothing
                     Just elseExpr -> do
                         setTaintMap prevTaintMap
+                        log =<< prettyTaintMap <$> getTaintMap
                         newElse <- instrumentStmt c elseExpr
                         elseTaintMap <- getTaintMap
                         let mergedTaintMap = mergeTaintMap combineDependenciesBranch thenTaintMap elseTaintMap
                         setTaintMap mergedTaintMap 
+                        log $ prettyTaintMap prevTaintMap
                         log $ prettyTaintMap thenTaintMap
                         log $ prettyTaintMap elseTaintMap
                         log $ prettyTaintMap mergedTaintMap
@@ -221,9 +223,7 @@ processAsgmt c op lhs rhs = do
     returnType <- tExpr c LValue lhs
     (dep, rhs') <- processRhs c op returnType rhs
     let idLhs = fromJust $ identOfExpr lhs
-    log $ "PROCESSASGMT: " ++ show (identToString idLhs, dep)
-    addToTaints idLhs dep
-    log =<< prettyTaintMap <$> getTaintMap 
+    updateTaint idLhs dep
     return rhs'
 
 exprDependency :: CExpr -> InstTrav (EntropicDependency, [CExpr])
