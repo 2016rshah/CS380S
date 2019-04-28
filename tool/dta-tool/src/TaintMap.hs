@@ -54,7 +54,7 @@ defLocal tm@(TaintMap gt []) id dep = defGlobal tm id dep
 defLocal (TaintMap gt (l:lt)) id dep = let l' = Map.insert id dep l in TaintMap gt (l':lt)
 
 updateLocal :: TaintMap -> Ident -> EntropicDependency -> (Maybe EntropicDependency, TaintMap)
-updateLocal = updateLocalWith (\_ v -> v) 
+updateLocal = updateLocalWith (\v _ -> v) 
 
 updateGlobalWith :: EntropyCombinator -> TaintMap -> Ident -> EntropicDependency -> (Maybe EntropicDependency, TaintMap)
 updateGlobalWith comb (TaintMap gt lt) ident dep = let (result, gt') = updateMapWith comb ident dep gt

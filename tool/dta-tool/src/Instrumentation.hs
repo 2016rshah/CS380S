@@ -109,6 +109,7 @@ instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_b
         mapM_ (withDefTable . defineLabel) (localLabels ++ getLabels s)
         defineParams node_info decl
         -- record parameters
+        -- log items
         items' <- mapM (instrumentBlockItem [FunCtx decl]) items
         leaveFunctionScope
         return $ CCompound localLabels items' node_info_body
@@ -131,9 +132,7 @@ instrumentStmt c s@(CExpr expr node) =
             expr' <- instrumentExpr c RValue e
             return $ CExpr (Just expr') node
 instrumentStmt c (CCompound localLabels blocks node) = do
-    enterBlockScope
     blocks' <- mapM (instrumentBlockItem []) blocks
-    leaveBlockScope
     return $ CCompound localLabels blocks' node
 instrumentStmt c (CWhile guard body isDoWhile node) = do
     guard' <- instrumentExpr c RValue guard
@@ -148,26 +147,19 @@ instrumentStmt c (CIf ifExpr thenStmt maybeElse node) = do
                     Nothing -> return Nothing
                     Just elseExpr -> do
                         setTaintMap prevTaintMap
-                        log =<< prettyTaintMap <$> getTaintMap
                         newElse <- instrumentStmt c elseExpr
                         elseTaintMap <- getTaintMap
                         let mergedTaintMap = mergeTaintMap combineDependenciesBranch thenTaintMap elseTaintMap
                         setTaintMap mergedTaintMap 
-                        log $ prettyTaintMap prevTaintMap
-                        log $ prettyTaintMap thenTaintMap
-                        log $ prettyTaintMap elseTaintMap
-                        log $ prettyTaintMap mergedTaintMap
                         return $ Just newElse
     return $ CIf ifExpr' thenStmt' maybeElse' node
 instrumentStmt c (CFor init expr2 expr3 stmt node) = do
     let mkExpr  e = Left <$> mkMaybeExpr c e
         mkDeclr d = Right <$> instrumentDecl True d
-    enterBlockScope
     init' <- either mkExpr mkDeclr init
     expr2' <- mkMaybeExpr c expr2
     expr3' <- mkMaybeExpr c expr3
     stmt' <- instrumentStmt c stmt
-    leaveBlockScope
     return $ CFor init' expr2' expr3' stmt' node
 instrumentStmt c (CSwitch selectorExpr switchStmt node) = do
     selectorExpr' <- instrumentExpr c RValue selectorExpr
@@ -286,7 +278,7 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
 
     where
     instrumentDecl' :: CDecl -> InstTrav CDecl
-    instrumentDecl' decl@(CDecl declspecs [(Just declr, init, _)] node) = do
+    instrumentDecl' decl@(CDecl declspecs [(Just declr, init, _x)] node) = do
         let id = fromJust $ identOfDecl decl
         if isSource decl
         then do
@@ -300,8 +292,7 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
                     (dep, expr') <- processRhs [] CAssignOp returnType expr
                     let init' = CInitExpr expr' node_info
                     addToTaints id dep
-                    log $ identToString id ++ ": " ++ show dep
-                    return decl
+                    return $ CDecl declspecs [(Just declr, Just init', _x)] node
     instrumentDecl' decl@CDecl{} = return decl
     instrumentDecl' CStaticAssert{} = error "Tried to instrument a static assertion"
 
