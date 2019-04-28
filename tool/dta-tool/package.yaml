@@ -2,9 +2,9 @@ name:                dta-tool
 version:             0.1.0.0
 github:              "githubuser/dta-tool"
 license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2019 Author name here"
+author:              "Andrew Russell"
+maintainer:          "andrew.russell001[at]gmail.com"
+copyright:           "2019 Andrew Russell"
 
 extra-source-files:
 - README.md
