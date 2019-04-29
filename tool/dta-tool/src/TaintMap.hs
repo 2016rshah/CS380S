@@ -1,6 +1,6 @@
 module TaintMap(
 TaintMap,
-taintMap, 
+emptyTaintMap, 
 globalTaints,
 mergeTaintMap,
 prettyTaintMap,
@@ -26,8 +26,8 @@ import Control.Arrow
 
 data TaintMap = TaintMap (Map.Map Ident EntropicDependency) [Map.Map Ident EntropicDependency]
 
-taintMap :: TaintMap
-taintMap = TaintMap Map.empty []
+emptyTaintMap :: TaintMap
+emptyTaintMap = TaintMap Map.empty []
 
 prettyTaintMap :: TaintMap -> [(String, EntropicDependency)]
 prettyTaintMap (TaintMap gt []) = map (first identToString) $ Map.toList gt

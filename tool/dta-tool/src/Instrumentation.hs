@@ -1,5 +1,5 @@
 module Instrumentation(
-instrumentationTraversal
+instrumentation
 )
 where
 import Prelude hiding (log)
@@ -7,6 +7,7 @@ import Prelude hiding (log)
 import Utils
 import EntropicDependency
 import DependencyFunction
+import InstrumentationState (emptyInstState)
 import InstrumentationTrav
 import TaintMap
 
@@ -30,6 +31,11 @@ import Language.C.Pretty
 import qualified Data.Map as Map
 import Data.Maybe 
 import Control.Monad
+
+instrumentation :: CTranslUnit -> CTranslUnit
+instrumentation ast =
+    let (result, _) = runTravOrDie emptyInstState $ instrumentationTraversal ast
+    in result
 
 instrumentationTraversal :: CTranslUnit -> InstTrav CTranslUnit
 instrumentationTraversal (CTranslUnit decls _file_node) = do

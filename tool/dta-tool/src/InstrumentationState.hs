@@ -1,5 +1,8 @@
 module InstrumentationState(
-InstrumentationState(..),
+InstrumentationState, 
+    taints,
+    preservingFns,
+    nonPreservingFns,
 addToLog, addPrettyToLog,
 emptyInstState
 )
@@ -17,37 +20,28 @@ import Language.C.Pretty
 
 import qualified Data.Map as Map
 
-type Log = [String]
-
 data InstrumentationState = IState 
     { 
-        notes :: Log, 
+        notes :: String, 
         taints :: TaintMap,
-        transformedFns :: [(FunDef, FunDef)],
         preservingFns :: [Decl],
-        nonPreservingFns :: [Decl],
-        ast :: CTranslUnit
+        nonPreservingFns :: [Decl]
     }
 
 instance Show InstrumentationState where
-    show is = "Log: " ++ show (notes is) ++ "\n\n" ++
-                "Taint values: " ++ show (Map.mapKeys (show . pretty) (globalTaints (taints is))) ++ "\n\n" ++
-                "Transformed Functions: \n" ++ showFns (transformedFns is)
-        where showFns = concatMap (\(f, f') -> "\t" ++ (show . pretty) f ++ " -> " ++ (show . pretty) f' ++ "\n")
+    show is = "Log: " ++ notes is ++ "\n\n" ++
+                "Taint values: " ++ show (Map.mapKeys (show . pretty) (globalTaints (taints is))) 
 
 addPrettyToLog :: (Pretty a) => a -> InstrumentationState -> InstrumentationState
-addPrettyToLog o is = let lg = notes is ++ [show (pretty o)] in is { notes = lg }
+addPrettyToLog o is = let lg = notes is ++ show (pretty o)  ++ "\n" in is { notes = lg }
 
 addToLog :: (Show a) => a -> InstrumentationState -> InstrumentationState
-addToLog o is = let lg = notes is ++ [show o] in is { notes = lg }
+addToLog o is = let lg = notes is ++ show o ++ "\n" in is { notes = lg }
 
-emptyInstState :: String -> InstrumentationState
-emptyInstState fileName = IState { 
-                                    notes = [], 
-                                    ast = CTranslUnit [] (OnlyPos pos (pos, 0)),
-                                    transformedFns = [],
-                                    taints = taintMap,
-                                    preservingFns = [],
-                                    nonPreservingFns = []
-                                    }
-    where pos = initPos fileName 
+emptyInstState :: InstrumentationState
+emptyInstState = IState { 
+                    notes = "", 
+                    taints = emptyTaintMap,
+                    preservingFns = [],
+                    nonPreservingFns = []
+                    }

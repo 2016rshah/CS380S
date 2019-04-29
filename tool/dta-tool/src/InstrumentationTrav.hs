@@ -1,9 +1,9 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module InstrumentationTrav(
 InstTrav,
-log, logPretty,
 addPreservingFn, addNonPreservingFn,
 getPreservingFns, getNonPreservingFns,
-addTransformedFn,
 addToTaints, updateTaint, getTaintValue, getTaintMap, setTaintMap, withTaintMap,
 enterBlockScope, leaveBlockScope, enterFunctionScope, leaveFunctionScope
 )
@@ -13,6 +13,7 @@ import Prelude hiding (log)
 import EntropicDependency
 import InstrumentationState
 import TaintMap
+import Loggable
 
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
@@ -29,11 +30,9 @@ import Data.Maybe
 
 type InstTrav = Trav InstrumentationState 
 
-log :: (Show a) => a -> InstTrav ()
-log = modifyUserState . addToLog
-
-logPretty :: (Pretty a) => a -> InstTrav ()
-logPretty = modifyUserState . addPrettyToLog
+instance Loggable InstTrav where
+    log = modifyUserState . addToLog
+    logPretty = modifyUserState . addPrettyToLog
 
 getPreservingFns :: InstTrav [Decl]
 getPreservingFns = preservingFns <$> getUserState
@@ -46,9 +45,6 @@ addPreservingFn f = modifyUserState $ \is -> is { preservingFns = preservingFns 
 
 addNonPreservingFn :: Decl -> InstTrav ()
 addNonPreservingFn f = modifyUserState $ \is -> is { nonPreservingFns = nonPreservingFns is ++ [f] }
-
-addTransformedFn :: (FunDef, FunDef) -> InstTrav ()
-addTransformedFn f = modifyUserState $ \is -> is { transformedFns = transformedFns is ++ [f] }
 
 addToTaints :: Ident -> EntropicDependency -> InstTrav ()
 addToTaints id t = modifyUserState $ \is -> is { taints = defLocal (taints is) id t }

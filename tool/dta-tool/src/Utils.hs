@@ -1,13 +1,18 @@
 module Utils(
 makeStrConst, setStrConst,
 identOfDecl, identOfExpr,
+resultOrDie, runTravOrDie,
+getFunDef
 )
 where
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
 import Language.C.Data.Node
 import Language.C.Data.Ident
-import Language.C.Analysis.NameSpaceMap
+import Language.C.Data.Position
+import Language.C.Analysis.TravMonad
+import Language.C.Analysis.DefTable
+import Language.C.Analysis.SemRep
 
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -36,3 +41,15 @@ identOfExpr (CVar id _) = Just id
 identOfExpr (CUnary CIndOp expr _) = identOfExpr expr
 identOfExpr (CIndex arr _ _) = identOfExpr arr
 identOfExpr _ = Nothing
+
+resultOrDie :: (Show a) => Either a b -> b
+resultOrDie (Left err) = error $ show err
+resultOrDie (Right x) = x
+
+runTravOrDie s = resultOrDie . (runTrav s)
+
+getFunDef :: DefTable -> Ident -> Maybe CFunDef
+getFunDef dt ident = let funDecl = lookup ident $ gObjs $ globalDefs dt
+                     in funDecl >>= funDefFromIdentDecl
+    where funDefFromIdentDecl (IdentDecl (FunctionDef fundef)) = Just fundef
+          funDefFromIdentDecl _ = Nothing
