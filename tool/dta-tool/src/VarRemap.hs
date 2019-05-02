@@ -7,6 +7,7 @@ VRState,
 emptyVRState,
 VRTrav,
 remapProgram,
+versionSuffix, getSuffix
 )
 where
 import Prelude hiding (log)
@@ -16,9 +17,11 @@ import Loggable
 
 import Language.C.Syntax.AST
 import Language.C.Data.Ident
+import Language.C.Data.Name
 import Language.C.Data.Position
 import Language.C.Analysis.TravMonad
 import Language.C.Analysis.AstAnalysis
+import Language.C.Analysis.NameSpaceMap
 import Language.C.Analysis.SemRep
 import Language.C.Analysis.DefTable
 import Language.C.Pretty
@@ -66,11 +69,12 @@ getRemapping = remapping <$> getUserState
 getVersion :: VRTrav ProgramVersion
 getVersion = version <$> getUserState
 
+versionSuffix :: ProgramVersion -> String
+versionSuffix FirstVersion = "_1"
+versionSuffix SecondVersion = "_2"
+
 getSuffix :: VRTrav String
-getSuffix = getVersion >>=
-    \v -> case v of
-        FirstVersion -> return "_1"
-        SecondVersion -> return "_2"
+getSuffix = versionSuffix <$> getVersion
 
 withRemapping :: (VarRemapping -> VarRemapping) -> VRTrav ()
 withRemapping f = modifyUserState (\st -> st { remapping = f (remapping st) })
@@ -78,7 +82,10 @@ withRemapping f = modifyUserState (\st -> st { remapping = f (remapping st) })
 remapGlobals :: CTranslUnit -> VRTrav ()
 remapGlobals ast = do
     withExtDeclHandler (analyseAST ast) remapHandler
-    return () -- TODO: use withDefTable to remap global decls
+    vRemap <- getRemapping
+    n <- withDefTable (remapDecls vRemap)
+    dTable <- getDefTable
+    log $ map (identToString . declIdent) $ Map.elems $ filterBuiltIns $ gObjs $ globalDefs dTable
     where
         remapHandler (DeclEvent de) = do
             name <- genName
@@ -89,18 +96,36 @@ remapGlobals ast = do
             withRemapping $ Map.insert ident ident'
         remapHandler _ = return ()
 
-remapFunctions :: GlobalDecls -> VRTrav GlobalDecls
-remapFunctions decls = do
-    -- instrument all declarations, but recover from errors
+        remapDecls remap dTable =
+            let globals = Map.mapKeys (\k -> Map.findWithDefault k k remap) $ gObjs $ globalDefs dTable 
+                globals' = Map.mapWithKey g globals
+                nsm' = Map.foldrWithKey f nameSpaceMap globals'
+                f k v nsm = fst $ defGlobal nsm k (Right v)
+                g k v = editDef k v
+            in (nsm', dTable { identDecls = nsm' })
+
+        editDef id (FunctionDef (FunDef (VarDecl _ declattrs ty) stmt node)) =
+            let varname = VarName id Nothing
+            in FunctionDef (FunDef (VarDecl varname declattrs ty) stmt node)
+        editDef id (Declaration (Decl (VarDecl _ declattrs ty) node)) =
+            let varname = VarName id Nothing
+            in Declaration $ Decl (VarDecl varname declattrs ty) node
+        editDef _ def = def
+
+
+remapFunctions :: VRTrav GlobalDecls
+remapFunctions = do
+    decls <- globalDefs <$> getDefTable
     mapM_ remapObj (gObjs decls)
     getDefTable >>= (\dt -> unless (inFileScope dt) $ error "Internal Error: Not in filescope after analysis")
     -- get the global definition table and export to an AST
     globalDefs <$> getDefTable 
 
 remapObj :: IdentDecl -> VRTrav ()
-remapObj = undefined
+remapObj (FunctionDef fundef) = return ()
+remapObj _ = return ()
 
 remapProgram :: CTranslUnit -> VRTrav GlobalDecls
 remapProgram ast = do
         remapGlobals ast
-        remapFunctions =<< globalDefs <$> getDefTable
+        remapFunctions 

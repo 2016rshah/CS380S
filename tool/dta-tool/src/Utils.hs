@@ -2,13 +2,15 @@ module Utils(
 makeStrConst, setStrConst,
 identOfDecl, identOfExpr,
 resultOrDie, runTravOrDie, runTravOrDie_,
-getFunDef
+getFunDef, emptyFunDef,
+filterBuiltIns
 )
 where
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
 import Language.C.Data.Node
 import Language.C.Data.Ident
+import Language.C.Data.Name
 import Language.C.Data.Position
 import Language.C.Analysis.TravMonad
 import Language.C.Analysis.DefTable
@@ -48,6 +50,25 @@ resultOrDie (Right x) = x
 
 runTravOrDie s = resultOrDie . (runTrav s)
 runTravOrDie_ s = fst . (runTravOrDie s)
+
+emptyFunDef :: String -> FunDef
+emptyFunDef fnName =
+    let varname = VarName (mkIdent nopos fnName (Name 0)) Nothing
+        declAttrs = DeclAttrs noFunctionAttrs NoStorage noAttributes
+        vardecl = VarDecl varname declAttrs funtype
+        returnType = DirectType TyVoid noTypeQuals noAttributes
+        funtype = FunctionType (FunType returnType [] False) noAttributes
+        stmt = CCompound [] [CBlockStmt (CReturn Nothing node)] node
+        node = undefNode
+    in FunDef vardecl stmt node
+
+filterBuiltIns = Map.filterWithKey noBuiltIns
+
+noBuiltIns idn _ = let n = identToString idn
+                   in not ("__builtin" `List.isPrefixOf` n) &&
+                       (n /= "__FUNCTION__") &&
+                       (n /= "__PRETTY_FUNCTION__") &&
+                       (n /= "__func__" )
 
 getFunDef :: DefTable -> Ident -> Maybe FunDef
 getFunDef dt ident = let funDecl = Map.lookup ident $ gObjs $ globalDefs dt

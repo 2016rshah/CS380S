@@ -3,6 +3,7 @@ module Main where
 import Utils
 import Instrumentation
 import VarRemap
+import ProductProgram
 
 import Language.C
 import Language.C.Syntax.AST
@@ -24,9 +25,8 @@ main = do
         fp <- head <$> getArgs
         parseResult <- parseCFile (newGCC "gcc") Nothing [] fp
         let parsed@(CTranslUnit ed ni) = resultOrDie parseResult
-        return ()
-        --     (traversalResult, traversalState) = runTravOrDie (emptyVRState FirstVersion) $ remapGlobals parsed
-        -- print $ userState traversalState
+        pp <- productProgram "main" parsed parsed
+        print $ pretty pp
 
 
 --  intstrumentation main
