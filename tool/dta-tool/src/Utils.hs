@@ -1,7 +1,7 @@
 module Utils(
 makeStrConst, setStrConst,
 identOfDecl, identOfExpr,
-resultOrDie, runTravOrDie,
+resultOrDie, runTravOrDie, runTravOrDie_,
 getFunDef
 )
 where
@@ -47,9 +47,10 @@ resultOrDie (Left err) = error $ show err
 resultOrDie (Right x) = x
 
 runTravOrDie s = resultOrDie . (runTrav s)
+runTravOrDie_ s = fst . (runTravOrDie s)
 
-getFunDef :: DefTable -> Ident -> Maybe CFunDef
-getFunDef dt ident = let funDecl = lookup ident $ gObjs $ globalDefs dt
+getFunDef :: DefTable -> Ident -> Maybe FunDef
+getFunDef dt ident = let funDecl = Map.lookup ident $ gObjs $ globalDefs dt
                      in funDecl >>= funDefFromIdentDecl
-    where funDefFromIdentDecl (IdentDecl (FunctionDef fundef)) = Just fundef
+    where funDefFromIdentDecl (FunctionDef fundef) = Just fundef
           funDefFromIdentDecl _ = Nothing

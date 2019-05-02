@@ -6,7 +6,7 @@ VRState,
     remapping,
 emptyVRState,
 VRTrav,
-remapGlobals,
+remapProgram,
 )
 where
 import Prelude hiding (log)
@@ -89,21 +89,18 @@ remapGlobals ast = do
             withRemapping $ Map.insert ident ident'
         remapHandler _ = return ()
 
-remapFunction :: CFunDef -> VRTrav CFunDef
-remapFunction = undefined
+remapFunctions :: GlobalDecls -> VRTrav GlobalDecls
+remapFunctions decls = do
+    -- instrument all declarations, but recover from errors
+    mapM_ remapObj (gObjs decls)
+    getDefTable >>= (\dt -> unless (inFileScope dt) $ error "Internal Error: Not in filescope after analysis")
+    -- get the global definition table and export to an AST
+    globalDefs <$> getDefTable 
 
-remapProgram :: String -> CTranslUnit -> VRTrav GlobalDecls
-remapProgram fnName ast = do
-        name <- genName
-        dTable <- getDefTable
-        let fIdent = mkIdent nopos fnName name
-            fDef = fromJust $ getFunDef dTable fIdent
+remapObj :: IdentDecl -> VRTrav ()
+remapObj = undefined
+
+remapProgram :: CTranslUnit -> VRTrav GlobalDecls
+remapProgram ast = do
         remapGlobals ast
-        fDef' <- remapFunction fDef
-        let fDecl = IdentDecl $ FunctionDef fDef'
-        withDefTable (defineGlobalIdent fIdent fDecl)
-        globalDefs <$> getDefTable
-
-    
-
-
+        remapFunctions =<< globalDefs <$> getDefTable

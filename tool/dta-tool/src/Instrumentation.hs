@@ -33,9 +33,7 @@ import Data.Maybe
 import Control.Monad
 
 instrumentation :: CTranslUnit -> CTranslUnit
-instrumentation ast =
-    let (result, _) = runTravOrDie emptyInstState $ instrumentationTraversal ast
-    in result
+instrumentation ast = runTravOrDie_ emptyInstState $ instrumentationTraversal ast
 
 instrumentationTraversal :: CTranslUnit -> InstTrav CTranslUnit
 instrumentationTraversal (CTranslUnit decls _file_node) = do
