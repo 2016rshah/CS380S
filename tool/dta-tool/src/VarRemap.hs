@@ -16,14 +16,17 @@ import Utils
 import Loggable
 
 import Language.C.Syntax.AST
+import Language.C.Syntax.Utils
 import Language.C.Data.Ident
 import Language.C.Data.Name
+import Language.C.Data.Node
 import Language.C.Data.Position
 import Language.C.Analysis.TravMonad
 import Language.C.Analysis.AstAnalysis
 import Language.C.Analysis.NameSpaceMap
 import Language.C.Analysis.SemRep
-import Language.C.Analysis.DefTable
+import Language.C.Analysis.DefTable hiding (enterFunctionScope, leaveFunctionScope,
+                                            enterBlockScope, leaveBlockScope)
 import Language.C.Pretty
 
 import qualified Data.Map as Map
@@ -79,6 +82,11 @@ getSuffix = versionSuffix <$> getVersion
 withRemapping :: (VarRemapping -> VarRemapping) -> VRTrav ()
 withRemapping f = modifyUserState (\st -> st { remapping = f (remapping st) })
 
+remapProgram :: CTranslUnit -> VRTrav GlobalDecls
+remapProgram ast = do
+        remapGlobals ast
+        remapFunctions 
+
 remapGlobals :: CTranslUnit -> VRTrav ()
 remapGlobals ast = do
     withExtDeclHandler (analyseAST ast) remapHandler
@@ -104,6 +112,7 @@ remapGlobals ast = do
                 g k v = editDef k v
             in (nsm', dTable { identDecls = nsm' })
 
+        -- TODO: handle typedef etc definitions
         editDef id (FunctionDef (FunDef (VarDecl _ declattrs ty) stmt node)) =
             let varname = VarName id Nothing
             in FunctionDef (FunDef (VarDecl varname declattrs ty) stmt node)
@@ -112,20 +121,46 @@ remapGlobals ast = do
             in Declaration $ Decl (VarDecl varname declattrs ty) node
         editDef _ def = def
 
-
 remapFunctions :: VRTrav GlobalDecls
 remapFunctions = do
     decls <- globalDefs <$> getDefTable
-    mapM_ remapObj (gObjs decls)
+    objs <- mapM remapObj (gObjs decls)
     getDefTable >>= (\dt -> unless (inFileScope dt) $ error "Internal Error: Not in filescope after analysis")
     -- get the global definition table and export to an AST
-    globalDefs <$> getDefTable 
+    return $ decls { gObjs = objs }
 
-remapObj :: IdentDecl -> VRTrav ()
-remapObj (FunctionDef fundef) = return ()
-remapObj _ = return ()
+remapObj :: IdentDecl -> VRTrav IdentDecl
+remapObj (FunctionDef (FunDef vardecl body node)) = do
+    body' <- remapFunctionBody node vardecl body
+    return $ FunctionDef $ FunDef vardecl body' node
+remapObj d = return d
 
-remapProgram :: CTranslUnit -> VRTrav GlobalDecls
-remapProgram ast = do
-        remapGlobals ast
-        remapFunctions 
+remapFunctionBody :: NodeInfo -> VarDecl -> Stmt -> VRTrav Stmt
+remapFunctionBody node_info decl s@(CCompound localLabels items node_info_body) =
+    do 
+        enterFunctionScope
+        localLabels' <- mapM remapIdent localLabels
+        labelsS <- mapM remapIdent $ getLabels s
+        mapM_ (withDefTable . defineLabel) (localLabels' ++ labelsS)
+        defineParams node_info decl
+        items' <- mapM (remapBlockItem [FunCtx decl]) items
+        leaveFunctionScope
+        return $ CCompound localLabels' items' node_info_body
+remapFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
+
+remapIdent :: Ident -> VRTrav Ident
+remapIdent (Ident s _ node) = do
+    suf <- getSuffix
+    name <- genName
+    let s' = s ++ suf
+        pos = posOfNode node
+    return $ mkIdent pos s' name
+
+remapBlockItem :: [StmtCtx] -> CBlockItem -> VRTrav CBlockItem
+remapBlockItem _ (CBlockDecl d) = return $ CBlockDecl d -- <$> instrumentDecl True d 
+remapBlockItem _ (CNestedFunDef fundef) = return $ CNestedFunDef fundef
+    -- CNestedFunDef <$> 
+    --     if shouldInstrumentFunction fundef 
+    --     then instrumentFunction fundef
+    --     else analyseFunDef fundef >> return fundef
+remapBlockItem c (CBlockStmt s) = return $ CBlockStmt s --CBlockStmt <$> instrumentStmt c s 
