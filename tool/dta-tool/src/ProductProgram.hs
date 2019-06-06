@@ -22,13 +22,14 @@ productProgram :: String -> CTranslUnit -> CTranslUnit -> IO CTranslUnit
 productProgram fnName ast1 ast2 =
     let 
         (g1, s1) = runTravOrDie (emptyVRState FirstVersion) $ remapProgram ast1
-        (g2, s2) = runTravOrDie (emptyVRState SecondVersion) $ remapProgram ast2
-        fId = mkIdent nopos fnName (Name 0)
-        (fDef1, g1') = extractFunction g1 $ fnName ++ versionSuffix FirstVersion
-        (fDef2, g2') = extractFunction g2 $ fnName ++ versionSuffix SecondVersion
-        g = mergeGlobalDecls g1' g2'
-        f = prodProg fnName fDef1 fDef2
-        funDecl = FunctionDef f
+        -- (g2, s2) = runTravOrDie (emptyVRState SecondVersion) $ remapProgram ast2
+        -- fId = mkIdent nopos fnName (Name 0)
+        -- (fDef1, g1') = extractFunction g1 $ fnName ++ versionSuffix FirstVersion
+        -- (fDef2, g2') = extractFunction g2 $ fnName ++ versionSuffix SecondVersion
+        -- g = mergeGlobalDecls g1' g2'
+        g = g1
+        -- f = prodProg fnName fDef1 fDef2
+        -- funDecl = FunctionDef f
     in do
         print $ userState s1
         print $ map identToString $ Map.keys $ filterBuiltIns $ gObjs $ g

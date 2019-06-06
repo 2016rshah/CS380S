@@ -2,7 +2,7 @@ module Utils(
 makeStrConst, setStrConst,
 identOfDecl, identOfExpr,
 resultOrDie, runTravOrDie, runTravOrDie_,
-getFunDef, emptyFunDef,
+getFunDef, getParams, emptyFunDef, appendToIdent,
 filterBuiltIns
 )
 where
@@ -69,6 +69,13 @@ noBuiltIns idn _ = let n = identToString idn
                        (n /= "__FUNCTION__") &&
                        (n /= "__PRETTY_FUNCTION__") &&
                        (n /= "__func__" )
+
+getParams :: Type -> Maybe [ParamDecl]
+getParams (FunctionType (FunType _ params _) _) = Just params
+getParams _ = Nothing
+
+appendToIdent :: Name -> String -> Ident -> Ident
+appendToIdent name suff (Ident id _ _) = mkIdent nopos (id ++ suff) name
 
 getFunDef :: DefTable -> Ident -> Maybe FunDef
 getFunDef dt ident = let funDecl = Map.lookup ident $ gObjs $ globalDefs dt

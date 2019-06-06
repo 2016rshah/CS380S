@@ -34,7 +34,7 @@ import Data.Maybe
 import Control.Monad
 
 data ProgramVersion = FirstVersion | SecondVersion
-type VarRemapping =  Map.Map Ident Ident
+type VarRemapping = NameSpaceMap Ident Ident
 
 data VRState = VRState
     {
@@ -51,7 +51,7 @@ instance Loggable VRTrav where
 
 instance Show VRState where
     show st = "Log: " ++ notes st ++ "\n\n" ++
-                "Variable Remappings: " ++ show (Map.mapKeys identToString (Map.map identToString (remapping st)))
+                "Variable Remappings: " ++ show (Map.mapKeys identToString (Map.map identToString (globalNames (remapping st))))
 
 addPrettyToLog :: (Pretty a) => a -> VRState -> VRState
 addPrettyToLog o is = let lg = notes is ++ show (pretty o)  ++ "\n" in is { notes = lg }
@@ -63,7 +63,7 @@ emptyVRState :: ProgramVersion -> VRState
 emptyVRState v = VRState { 
                         notes = "", 
                         version = v,
-                        remapping = Map.empty
+                        remapping = nameSpaceMap
                         }
 
 getRemapping :: VRTrav VarRemapping
@@ -82,44 +82,63 @@ getSuffix = versionSuffix <$> getVersion
 withRemapping :: (VarRemapping -> VarRemapping) -> VRTrav ()
 withRemapping f = modifyUserState (\st -> st { remapping = f (remapping st) })
 
+defGlobalRemap :: Ident -> Ident -> VarRemapping -> VarRemapping
+defGlobalRemap id1 id2 vRemap = fst $ defGlobal vRemap id1 id2
+
 remapProgram :: CTranslUnit -> VRTrav GlobalDecls
 remapProgram ast = do
         remapGlobals ast
-        remapFunctions 
+        varRemap <- getRemapping
+        suff <- getSuffix
+        withDefTable (remapDefTable varRemap suff) 
+        globalDefs <$> getDefTable
 
 remapGlobals :: CTranslUnit -> VRTrav ()
 remapGlobals ast = do
     withExtDeclHandler (analyseAST ast) remapHandler
-    vRemap <- getRemapping
-    n <- withDefTable (remapDecls vRemap)
-    dTable <- getDefTable
-    log $ map (identToString . declIdent) $ Map.elems $ filterBuiltIns $ gObjs $ globalDefs dTable
+    return ()
     where
         remapHandler (DeclEvent de) = do
             name <- genName
             suff <- getSuffix
-            let ident@(Ident id _ _) = declIdent de
-                ident' = mkIdent nopos (id ++ suff) name
+            let ident = declIdent de
+                ident' = appendToIdent name suff ident
             remap <- getRemapping
-            withRemapping $ Map.insert ident ident'
+            withRemapping $ defGlobalRemap ident ident' 
         remapHandler _ = return ()
 
-        remapDecls remap dTable =
-            let globals = Map.mapKeys (\k -> Map.findWithDefault k k remap) $ gObjs $ globalDefs dTable 
-                globals' = Map.mapWithKey g globals
-                nsm' = Map.foldrWithKey f nameSpaceMap globals'
-                f k v nsm = fst $ defGlobal nsm k (Right v)
-                g k v = editDef k v
-            in (nsm', dTable { identDecls = nsm' })
+remapDefTable varRemap suff dTable =
+    let remap = globalNames varRemap
+        globals = Map.mapKeys (\k -> Map.findWithDefault k k remap) $ gObjs $ globalDefs dTable 
+        globals' = Map.mapWithKey (editDef varRemap suff) globals
+        nsm' = Map.foldrWithKey f nameSpaceMap globals'
+        f k v nsm = fst $ defGlobal nsm k (Right v)
+    in ((), dTable { identDecls = nsm' })
+    where
 
-        -- TODO: handle typedef etc definitions
-        editDef id (FunctionDef (FunDef (VarDecl _ declattrs ty) stmt node)) =
-            let varname = VarName id Nothing
-            in FunctionDef (FunDef (VarDecl varname declattrs ty) stmt node)
-        editDef id (Declaration (Decl (VarDecl _ declattrs ty) node)) =
-            let varname = VarName id Nothing
-            in Declaration $ Decl (VarDecl varname declattrs ty) node
-        editDef _ def = def
+    -- TODO: handle typedef etc definitions
+    editDef :: VarRemapping -> String -> Ident -> IdentDecl -> IdentDecl
+    editDef varRemap suff id (FunctionDef (FunDef (VarDecl _ declattrs ty) stmt node)) =
+        let varname = VarName id Nothing
+            ty' = editType id ty
+            stmt = remapFunctionBody
+        in FunctionDef (FunDef (VarDecl varname declattrs ty) stmt node)
+    editDef varRemap suff id (Declaration (Decl (VarDecl _ declattrs ty) node)) =
+        let varname = VarName id Nothing
+        in Declaration $ Decl (VarDecl varname declattrs ty) node
+    editDef _ _ _ def = def
+
+    editType id (FunctionType (FunType ty params isVariadic) attrs) = 
+        let params' = map (editParamDecl id) params
+        in FunctionType (FunType ty params' isVariadic) attrs
+    editType _ t = t
+
+    editParamDecl id (ParamDecl vd ni) = ParamDecl (remapVarDecl id vd) ni
+    editParamDecl id (AbstractParamDecl vd ni) = AbstractParamDecl (remapVarDecl id vd) ni
+
+
+remapVarDecl :: Ident -> VarDecl -> VarDecl
+remapVarDecl id (VarDecl _ declattrs ty) = VarDecl (VarName id Nothing) declattrs ty
 
 remapFunctions :: VRTrav GlobalDecls
 remapFunctions = do
