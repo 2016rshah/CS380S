@@ -33,7 +33,6 @@ productProgram fnName ast1 ast2 =
         f = prodProg fnName fDef1 fDef2
         funDecl = FunctionDef f
     in do
-        print ast1'
         print $ map identToString $ Map.keys $ filterBuiltIns $ gObjs g
         return $ export $ g { gObjs = Map.insert fId funDecl (gObjs g) }
 

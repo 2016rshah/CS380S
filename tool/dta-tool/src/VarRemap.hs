@@ -1,13 +1,7 @@
-{-# LANGUAGE FlexibleInstances #-}
-
 module VarRemap(
 ProgramVersion(..),
-VRState,
-    remapping,
-emptyVRState,
-VRTrav,
 remapProgram,
-versionSuffix, getSuffix
+versionSuffix
 )
 where
 import Prelude hiding (log)
@@ -34,53 +28,10 @@ import Data.Maybe
 import Control.Monad
 
 data ProgramVersion = FirstVersion | SecondVersion
-type VarRemapping =  Map.Map Ident Ident
-
-data VRState = VRState
-    {
-        notes :: String,
-        version :: ProgramVersion,
-        remapping :: VarRemapping
-    }
-
-type VRTrav = Trav VRState
-
-instance Loggable VRTrav where
-    log = modifyUserState . addToLog
-    logPretty = modifyUserState . addPrettyToLog
-
-instance Show VRState where
-    show st = "Log: " ++ notes st ++ "\n\n" ++
-                "Variable Remappings: " ++ show (Map.mapKeys identToString (Map.map identToString (remapping st)))
-
-addPrettyToLog :: (Pretty a) => a -> VRState -> VRState
-addPrettyToLog o is = let lg = notes is ++ show (pretty o)  ++ "\n" in is { notes = lg }
-
-addToLog :: (Show a) => a -> VRState -> VRState
-addToLog o is = let lg = notes is ++ show o ++ "\n" in is { notes = lg }
-
-emptyVRState :: ProgramVersion -> VRState
-emptyVRState v = VRState { 
-                        notes = "", 
-                        version = v,
-                        remapping = Map.empty
-                        }
-
-getRemapping :: VRTrav VarRemapping
-getRemapping = remapping <$> getUserState
-
-getVersion :: VRTrav ProgramVersion
-getVersion = version <$> getUserState
 
 versionSuffix :: ProgramVersion -> String
 versionSuffix FirstVersion = "_1"
 versionSuffix SecondVersion = "_2"
-
-getSuffix :: VRTrav String
-getSuffix = versionSuffix <$> getVersion
-
-withRemapping :: (VarRemapping -> VarRemapping) -> VRTrav ()
-withRemapping f = modifyUserState (\st -> st { remapping = f (remapping st) })
 
 remapProgram :: ProgramVersion -> CTranslUnit -> CTranslUnit
 remapProgram version (CTranslUnit decls node) = 
@@ -93,110 +44,127 @@ remapExtDecl version (CFDefExt fundef) = CFDefExt $ remapFun version fundef
 remapExtDecl version asm = asm
 
 remapDecl :: ProgramVersion -> CDecl -> CDecl
-remapDecl version d@(CDecl declspecs declrs node) = d
+remapDecl version (CDecl declspecs declrs node) =
+    let declrs' = map remapDecl' declrs
+    in CDecl declspecs declrs' node
+    where
+        remapDecl' (decl, init, expr) =
+            let decl' = remapDeclr version <$> decl
+                init' = remapInitializer version <$> init
+                expr' = remapExpr version <$> expr
+            in (decl', init', expr')
 remapDecl version (CStaticAssert expr strLit node) =
     let expr' = remapExpr version expr
     in CStaticAssert expr' strLit node
 
+remapInitializer :: ProgramVersion -> CInit -> CInit
+remapInitializer version (CInitExpr expr node) = CInitExpr (remapExpr version expr) node
+remapInitializer version (CInitList [] node) = CInitList [] node
+remapInitializer version (CInitList xs node) = CInitList (remapInitList version xs) node
+
+remapInitList :: ProgramVersion -> CInitList -> CInitList
+remapInitList version [] = []
+remapInitList version ((desigs, init):xs) = 
+    let xs' = remapInitList version xs
+        desigs' = map (remapDesig version) desigs
+        init' = remapInitializer version init
+        x' = (desigs', init')
+    in x':xs'
+
+remapDesig :: ProgramVersion -> CDesignator -> CDesignator
+remapDesig version (CArrDesig expr node) = CArrDesig (remapExpr version expr) node
+remapDesig version (CMemberDesig id node) = CMemberDesig (remapIdent version id) node
+remapDesig version (CRangeDesig expr1 expr2 node) = CRangeDesig (remapExpr version expr1) (remapExpr version expr2) node
+
+remapIdent :: ProgramVersion -> Ident -> Ident
+remapIdent version id = 
+    let suff = versionSuffix version
+    in appendToId suff id
+
 remapFun :: ProgramVersion -> CFunDef -> CFunDef
 remapFun version (CFunDef declspecs declr oldstyle_decls stmt node_info) =
     let declr' = remapDeclr version declr
-    in CFunDef declspecs declr' oldstyle_decls stmt node_info
+        stmt' = remapStmt version stmt
+    in CFunDef declspecs declr' oldstyle_decls stmt' node_info
 
 remapDeclr :: ProgramVersion -> CDeclr -> CDeclr
 remapDeclr version declr@(CDeclr maybeId derivedDeclrs maybeStrLit attrs node) =
-    let suff = versionSuffix version
-        id' = appendToId suff <$> maybeId
+    let id' = remapIdent version <$> maybeId
         derivedDeclrs' = map (remapDerivedDeclr version) derivedDeclrs
     in CDeclr id' derivedDeclrs' maybeStrLit attrs node
 
 remapDerivedDeclr :: ProgramVersion -> CDerivedDeclr -> CDerivedDeclr
 remapDerivedDeclr version (CFunDeclr params attrs node) =
-    let appSuff = appendToId (versionSuffix version)
-        params' = case params of 
-                    Left idents -> Left $ map appSuff idents
+    let params' = case params of 
+                    Left idents -> Left $ map (remapIdent version) idents
                     Right (decls, isVariadic) -> Right (map (remapDecl version) decls, isVariadic)
     in CFunDeclr params' attrs node
 remapDerivedDeclr version derDeclr = derDeclr
-    
+
+remapStmt :: ProgramVersion -> CStat -> CStat
+remapStmt version (CCompound idents blocks node) =
+    let idents' = remapIdent version <$> idents
+        blocks' = remapBlockItem version <$> blocks
+    in CCompound idents' blocks' node
+remapStmt version (CReturn mExpr node) = CReturn (remapExpr version <$> mExpr) node
+remapStmt version (CLabel id stmt attrs node) = CLabel (remapIdent version id) (remapStmt version stmt) (remapAttr version <$> attrs) node
+remapStmt version (CCase expr stmt node) = CCase (remapExpr version expr) (remapStmt version stmt) node
+remapStmt version (CCases lower upper stmt node) = CCases (remapExpr version lower) (remapExpr version upper) (remapStmt version stmt) node
+remapStmt version (CDefault stmt node) = CDefault (remapStmt version stmt) node
+remapStmt version (CExpr mExpr node) = CExpr (remapExpr version <$> mExpr) node
+remapStmt version (CIf ifExpr thenStmt maybeElseStmt node) = 
+    let ifExpr' = remapExpr version ifExpr
+        thenStmt' = remapStmt version thenStmt
+        maybeElseStmt' = remapStmt version <$> maybeElseStmt
+    in CIf ifExpr' thenStmt' maybeElseStmt' node
+remapStmt version (CSwitch selector switchStmt node) = CSwitch (remapExpr version selector) (remapStmt version switchStmt) node
+remapStmt version (CWhile guard stmt isDoWhile node) = CWhile (remapExpr version guard) (remapStmt version stmt) isDoWhile node
+remapStmt version (CFor init expr2 expr3 stmt node) =
+    let init' = case init of
+                    Left mInitExpr -> Left $ remapExpr version <$> mInitExpr
+                    Right decl -> Right $ remapDecl version decl
+        expr2' = remapExpr version <$> expr2
+        expr3' = remapExpr version <$> expr3
+        stmt' = remapStmt version stmt
+    in CFor init' expr2' expr3' stmt' node
+remapStmt version (CGoto id node) = CGoto (remapIdent version id) node
+remapStmt version (CGotoPtr expr node) = CGotoPtr (remapExpr version expr) node
+remapStmt _ c = c
+
+remapAttr :: ProgramVersion -> CAttr -> CAttr
+remapAttr version (CAttr id exprs node) = CAttr (remapIdent version id) (remapExpr version <$> exprs) node
+
+remapBlockItem :: ProgramVersion -> CBlockItem -> CBlockItem
+remapBlockItem version (CBlockStmt stmt) = CBlockStmt $ remapStmt version stmt
+remapBlockItem version (CBlockDecl decl) = CBlockDecl $ remapDecl version decl
+remapBlockItem version (CNestedFunDef fundef) = CNestedFunDef $ remapFun version fundef
 
 remapExpr :: ProgramVersion -> CExpr -> CExpr
-remapExpr version = id
+remapExpr version (CVar id node) = CVar (remapIdent version id) node
+remapExpr version (CComma exprs node) = CComma (remapExpr version <$> exprs) node
+remapExpr version (CAssign op lhs rhs node) = CAssign op (remapExpr version lhs) (remapExpr version rhs) node
+remapExpr version (CCond expr1 mExpr2 expr3 node) = 
+    CCond (remapExpr version expr1) (remapExpr version <$> mExpr2) (remapExpr version expr3) node
+remapExpr version (CBinary op expr1 expr2 node) = CBinary op (remapExpr version expr1) (remapExpr version expr2) node
+remapExpr version (CCast decl expr node) = CCast (remapDecl version decl) (remapExpr version expr) node
+remapExpr version (CUnary op expr node) = CUnary op (remapExpr version expr) node
+remapExpr version (CSizeofExpr expr node) = CSizeofExpr (remapExpr version expr) node
+remapExpr version (CSizeofType decl node) = CSizeofType (remapDecl version decl) node
+remapExpr version (CAlignofExpr expr node) = CAlignofExpr (remapExpr version expr) node
+remapExpr version (CAlignofType decl node) = CAlignofType (remapDecl version decl) node
+remapExpr version (CComplexReal expr node) = CComplexReal (remapExpr version expr) node
+remapExpr version (CComplexImag expr node) = CComplexImag (remapExpr version expr) node
+remapExpr version (CIndex expr1 expr2 node) = CIndex (remapExpr version expr1) (remapExpr version expr2) node
+remapExpr version (CCall expr1 exprs node) = CCall (remapExpr version expr1) (remapExpr version <$> exprs) node
+remapExpr version (CMember struct id deref node) = CMember (remapExpr version struct) (remapIdent version id) deref node
+remapExpr version (CConst const ) = CConst const 
+remapExpr version (CCompoundLit decl initList node) = CCompoundLit (remapDecl version decl) (remapInitList version initList) node
+remapExpr version (CGenericSelection expr xs node) = 
+    let f (mDecl, expr) = (remapDecl version <$> mDecl, remapExpr version expr)
+        xs' = map f xs
+        expr' = remapExpr version expr
+    in CGenericSelection expr' xs' node
+remapExpr version (CStatExpr stmt node) = CStatExpr (remapStmt version stmt) node
+remapExpr version (CLabAddrExpr id node) = CLabAddrExpr (remapIdent version id) node
+remapExpr version expr = expr
 
--- remapGlobals :: CTranslUnit -> VRTrav ()
--- remapGlobals ast = do
---     withExtDeclHandler (analyseAST ast) remapHandler
---     vRemap <- getRemapping
---     n <- withDefTable (remapDecls vRemap)
---     dTable <- getDefTable
---     log $ map (identToString . declIdent) $ Map.elems $ filterBuiltIns $ gObjs $ globalDefs dTable
---     where
---         remapHandler (DeclEvent de) = do
---             name <- genName
---             suff <- getSuffix
---             let ident@(Ident id _ _) = declIdent de
---                 ident' = mkIdent nopos (id ++ suff) name
---             remap <- getRemapping
---             withRemapping $ Map.insert ident ident'
---         remapHandler _ = return ()
-
---         remapDecls remap dTable =
---             let globals = Map.mapKeys (\k -> Map.findWithDefault k k remap) $ gObjs $ globalDefs dTable 
---                 globals' = Map.mapWithKey g globals
---                 nsm' = Map.foldrWithKey f nameSpaceMap globals'
---                 f k v nsm = fst $ defGlobal nsm k (Right v)
---                 g k v = editDef k v
---             in (nsm', dTable { identDecls = nsm' })
-
---         -- TODO: handle typedef etc definitions
---         editDef id (FunctionDef (FunDef (VarDecl _ declattrs ty) stmt node)) =
---             let varname = VarName id Nothing
---             in FunctionDef (FunDef (VarDecl varname declattrs ty) stmt node)
---         editDef id (Declaration (Decl (VarDecl _ declattrs ty) node)) =
---             let varname = VarName id Nothing
---             in Declaration $ Decl (VarDecl varname declattrs ty) node
---         editDef _ def = def
-
--- remapFunctions :: VRTrav GlobalDecls
--- remapFunctions = do
---     decls <- globalDefs <$> getDefTable
---     objs <- mapM remapObj (gObjs decls)
---     getDefTable >>= (\dt -> unless (inFileScope dt) $ error "Internal Error: Not in filescope after analysis")
---     -- get the global definition table and export to an AST
---     return $ decls { gObjs = objs }
-
--- remapObj :: IdentDecl -> VRTrav IdentDecl
--- remapObj (FunctionDef (FunDef vardecl body node)) = do
---     body' <- remapFunctionBody node vardecl body
---     return $ FunctionDef $ FunDef vardecl body' node
--- remapObj d = return d
-
--- remapFunctionBody :: NodeInfo -> VarDecl -> Stmt -> VRTrav Stmt
--- remapFunctionBody node_info decl s@(CCompound localLabels items node_info_body) =
---     do 
---         enterFunctionScope
---         localLabels' <- mapM remapIdent localLabels
---         labelsS <- mapM remapIdent $ getLabels s
---         mapM_ (withDefTable . defineLabel) (localLabels' ++ labelsS)
---         defineParams node_info decl
---         items' <- mapM (remapBlockItem [FunCtx decl]) items
---         leaveFunctionScope
---         return $ CCompound localLabels' items' node_info_body
--- remapFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
-
--- remapIdent :: Ident -> VRTrav Ident
--- remapIdent (Ident s _ node) = do
---     suf <- getSuffix
---     name <- genName
---     let s' = s ++ suf
---         pos = posOfNode node
---     return $ mkIdent pos s' name
-
--- remapBlockItem :: [StmtCtx] -> CBlockItem -> VRTrav CBlockItem
--- remapBlockItem _ (CBlockDecl d) = return $ CBlockDecl d -- <$> instrumentDecl True d 
--- remapBlockItem _ (CNestedFunDef fundef) = return $ CNestedFunDef fundef
---     -- CNestedFunDef <$> 
---     --     if shouldInstrumentFunction fundef 
---     --     then instrumentFunction fundef
---     --     else analyseFunDef fundef >> return fundef
--- remapBlockItem c (CBlockStmt s) = return $ CBlockStmt s --CBlockStmt <$> instrumentStmt c s 
