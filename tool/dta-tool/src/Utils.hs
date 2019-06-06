@@ -2,7 +2,7 @@ module Utils(
 makeStrConst, setStrConst,
 identOfDecl, identOfExpr,
 resultOrDie, runTravOrDie, runTravOrDie_,
-getFunDef, emptyFunDef,
+getFunDef, emptyFunDef, appendToId,
 filterBuiltIns
 )
 where
@@ -50,6 +50,9 @@ resultOrDie (Right x) = x
 
 runTravOrDie s = resultOrDie . (runTrav s)
 runTravOrDie_ s = fst . (runTravOrDie s)
+
+appendToId :: String -> Ident -> Ident
+appendToId suff (Ident id _ node) = internalIdentAt (posOfNode node) (id ++ suff)
 
 emptyFunDef :: String -> FunDef
 emptyFunDef fnName =

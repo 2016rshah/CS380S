@@ -7,6 +7,7 @@ import Utils
 import VarRemap
 
 import Language.C.Syntax.AST
+import Language.C.Analysis.AstAnalysis
 import Language.C.Analysis.DefTable
 import Language.C.Analysis.TravMonad
 import Language.C.Analysis.SemRep
@@ -21,8 +22,10 @@ import Control.Arrow
 productProgram :: String -> CTranslUnit -> CTranslUnit -> IO CTranslUnit
 productProgram fnName ast1 ast2 =
     let 
-        (g1, s1) = runTravOrDie (emptyVRState FirstVersion) $ remapProgram ast1
-        (g2, s2) = runTravOrDie (emptyVRState SecondVersion) $ remapProgram ast2
+        ast1' = remapProgram FirstVersion ast1
+        ast2' = remapProgram SecondVersion ast2
+        (g1, s1) = runTravOrDie () $ analyseAST ast1'
+        (g2, s2) = runTravOrDie () $ analyseAST ast2'
         fId = mkIdent nopos fnName (Name 0)
         (fDef1, g1') = extractFunction g1 $ fnName ++ versionSuffix FirstVersion
         (fDef2, g2') = extractFunction g2 $ fnName ++ versionSuffix SecondVersion
@@ -30,9 +33,8 @@ productProgram fnName ast1 ast2 =
         f = prodProg fnName fDef1 fDef2
         funDecl = FunctionDef f
     in do
-        print $ userState s1
-        print $ map identToString $ Map.keys $ filterBuiltIns $ gObjs $ g
-        return $ export $ g -- { gObjs = Map.insert fId funDecl (gObjs g) }
+        print $ map identToString $ Map.keys $ filterBuiltIns $ gObjs g
+        return $ export $ g { gObjs = Map.insert fId funDecl (gObjs g) }
 
 prodProg :: String -> FunDef -> FunDef -> FunDef
 prodProg fnName _ _ = emptyFunDef fnName
