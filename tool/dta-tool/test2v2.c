@@ -26,14 +26,6 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 10; i++) {
         *t = "qwer";
     }
-    int k = 0;
-    k = 4;
-    while (k < 10) {
-        k++;
-        *t = "jkl;";
-    }
-    t = bar;
-    return 0;
 }
 
 char* g() {

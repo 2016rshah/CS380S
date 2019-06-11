@@ -3,6 +3,7 @@ makeStrConst, setStrConst,
 identOfDecl, identOfExpr,
 resultOrDie, runTravOrDie, runTravOrDie_,
 getFunDef, emptyFunDef, appendToId,
+getReturnType, getFnParams,
 filterBuiltIns
 )
 where
@@ -78,3 +79,24 @@ getFunDef dt ident = let funDecl = Map.lookup ident $ gObjs $ globalDefs dt
                      in funDecl >>= funDefFromIdentDecl
     where funDefFromIdentDecl (FunctionDef fundef) = Just fundef
           funDefFromIdentDecl _ = Nothing
+
+getReturnType :: FunDef -> Type
+getReturnType f = let ty = declType f 
+                      fTy = case ty of
+                                FunctionType ft _ -> ft
+                                _ -> error "Function definition does not have function type"
+                  in
+                    case fTy of
+                        FunTypeIncomplete retType -> retType
+                        FunType retType _ _ -> retType
+
+getFnParams :: FunDef -> ([ParamDecl], Bool)
+getFnParams f =
+    let ty = declType f 
+        fTy = case ty of
+                FunctionType ft _ -> ft
+                _ -> error "Function definition does not have function type"
+    in
+        case fTy of
+            FunTypeIncomplete _ -> ([], False)
+            FunType _ pds isVariadic -> (pds, isVariadic)

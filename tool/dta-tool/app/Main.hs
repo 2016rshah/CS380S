@@ -22,40 +22,13 @@ import Text.PrettyPrint
 
 main :: IO ()
 main = do
-        fp <- head <$> getArgs
-        parseResult <- parseCFile (newGCC "gcc") Nothing [] fp
-        let parsed@(CTranslUnit ed ni) = resultOrDie parseResult
-        pp <- productProgram "main" parsed parsed
+        fp1 <- (!! 0) <$> getArgs
+        fp2 <- (!! 1) <$> getArgs
+        parseResult1 <- parseCFile (newGCC "gcc") Nothing [] fp1
+        parseResult2 <- parseCFile (newGCC "gcc") Nothing [] fp2
+        let parsed1 = resultOrDie parseResult1
+            parsed2 = resultOrDie parseResult2
+            instrumentedAst1 = instrumentation parsed1
+            instrumentedAst2 = instrumentation parsed2
+        pp <- productProgram "main" instrumentedAst1 instrumentedAst2
         print $ pretty pp
-
-
---  intstrumentation main
--- main :: IO ()
--- main = do
---         fp <- head <$> getArgs
---         parseResult <- parseCFile (newGCC "gcc") Nothing [] fp
---         let f (Left pr) = error $ show pr
---             f (Right pr) = pr
---             parsed@(CTranslUnit ed ni) = f parseResult
---             g (Left err) = error $ "Traversal error: " ++ show err
---             g (Right (result, state)) = (result, userState state)
---             (traversalResult, traversalState) = g $ runTrav (emptyInstState fp) $ instrumentationTraversal parsed
---         print traversalState
---         let astOutput = prettyAst parsed
---         writeFile "astEdited.hs" astOutput
---         let newAst = case parseC (inputStreamFromString $ show $ pretty traversalResult) (initPos fp) of
---                         (Left parseError) -> error "Parse error"
---                         (Right newTranslUnit) -> newTranslUnit
---         writeFile "globalDecls.hs" $ prettyAst newAst
---         printFormattedFilename fp 18
---         print $ pretty parsed
---         printFormattedFilename (fp ++ " Transformed") 12
---         print $ pretty newAst
---     where
---         prettyAst ast@(CTranslUnit ed ni) = ppShow ed
---         printFormattedFilename fp n = do
---             putStrLn $ "|" ++ replicate (2 * n + length fp) '=' ++ "|"
---             putStrLn $ "|" ++ replicate n ' ' ++ fp ++ replicate n ' ' ++ "|"
---             putStrLn $ "|" ++ replicate (2 * n + length fp) '=' ++ "|"
-
-
