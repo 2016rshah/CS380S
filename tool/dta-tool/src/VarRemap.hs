@@ -83,7 +83,7 @@ remapIdent version id =
 
 remapFun :: ProgramVersion -> CFunDef -> CFunDef
 remapFun version (CFunDef declspecs declr oldstyle_decls stmt node_info) =
-    let declr' = remapDeclr version declr
+    let declr' = if isMain declr then declr else remapDeclr version declr
         stmt' = remapStmt version stmt
     in CFunDef declspecs declr' oldstyle_decls stmt' node_info
 

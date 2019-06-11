@@ -30,5 +30,5 @@ main = do
             parsed2 = resultOrDie parseResult2
             instrumentedAst1 = instrumentation parsed1
             instrumentedAst2 = instrumentation parsed2
-        pp <- productProgram "main" instrumentedAst1 instrumentedAst2
+        pp <- productProgram "main1" instrumentedAst1 instrumentedAst2
         print $ pretty pp

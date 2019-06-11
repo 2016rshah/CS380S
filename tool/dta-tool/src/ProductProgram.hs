@@ -18,24 +18,33 @@ import Language.C.Data.Node
 import Language.C.Analysis.Export
 import Language.C.Analysis.TypeUtils
 
+import Data.Maybe
+import Data.Either
 import qualified Data.Map as Map
 import Control.Arrow
 
 productProgram :: String -> CTranslUnit -> CTranslUnit -> IO CTranslUnit
-productProgram fnName ast1 ast2 =
-    let 
-        ast1' = remapProgram FirstVersion ast1
-        ast2' = remapProgram SecondVersion ast2
-        (g1, s1) = runTravOrDie () $ analyseAST ast1'
-        (g2, s2) = runTravOrDie () $ analyseAST ast2'
-        fId = mkIdent nopos fnName (Name 0)
-        (fDef1, g1') = extractFunction g1 $ fnName ++ versionSuffix FirstVersion
-        (fDef2, g2') = extractFunction g2 $ fnName ++ versionSuffix SecondVersion
-        g = mergeGlobalDecls g1' g2'
-        f = prodProg fnName fDef1 fDef2
-        funDecl = FunctionDef f
-    in do
-        return $ export $ g { gObjs = Map.insert fId funDecl (gObjs g) }
+productProgram fnName ast1 ast2 
+    | fnName == "main" = error "Cannot take the product of `main`"
+    | otherwise =
+        let 
+            ast1' = remapProgram FirstVersion ast1
+            ast2' = remapProgram SecondVersion ast2
+            (g1, s1) = runTravOrDie () $ analyseAST ast1'
+            (g2, s2) = runTravOrDie () $ analyseAST ast2'
+            fId = mkIdent nopos fnName (Name 0)
+            (fDef1, g1') = extractFunction g1 $ fnName ++ versionSuffix FirstVersion
+            (fDef2, g2') = extractFunction g2 $ fnName ++ versionSuffix SecondVersion
+            (main1, g1'') = extractFunction g1' "main"
+            (main2, g2'') = extractFunction g2' "main"
+            mainId = mkIdent nopos "main" (Name 1)
+            mainDecl = FunctionDef main2
+            g = mergeGlobalDecls g1'' g2''
+            g' = g { gObjs = Map.insert mainId mainDecl (gObjs g) } -- use the second version of main
+            f = prodProg fnName fDef1 fDef2
+            funDecl = FunctionDef f
+        in do
+            return $ export $ g' { gObjs = Map.insert fId funDecl (gObjs g') }
 
 prodProg :: String -> FunDef -> FunDef -> FunDef
 prodProg fnName p1 p2
@@ -73,6 +82,47 @@ prodStmts (CIf ifExpr thenStmt mElse node) stmt2 =
     let s1 = flattenStmt $ prodStmts thenStmt stmt2
         s2 = flattenStmt <$> prodStmts stmt2 <$> mElse
     in [CIf ifExpr s1 s2 node]
+prodStmts (CWhile guard1 stmt1 isDoWhile1 node1) (CWhile guard2 stmt2 isDoWhile2 node2) =
+    let 
+        s1 = if isDoWhile1 then [stmt1] else []
+        s2 = if isDoWhile2 then [stmt2] else []
+        while0 = CWhile (CBinary CLndOp guard1 guard2 undefNode) (flattenStmt $ prodStmts stmt1 stmt2) False undefNode
+        while1 = CWhile guard1 stmt1 False undefNode
+        while2 = CWhile guard2 stmt2 False undefNode
+    in s1 ++ s2 ++ [while0, while1, while2]
+prodStmts (CFor init expr2 expr3 stmt _) (CFor init' expr2' expr3' stmt' _) =
+    let
+        preDecls = CBlockDecl <$> rights [init, init']
+        newInit = let
+                    initExprs = catMaybes $ lefts [init, init']
+                  in
+                    if length initExprs == 0
+                    then Left Nothing
+                    else if length initExprs == 1
+                    then Left $ Just $ head initExprs
+                    else Left $ Just $ CComma initExprs undefNode 
+        newExpr2 = let
+                    expr2s = catMaybes [expr2, expr2']
+                   in
+                    if length expr2s == 0
+                    then Nothing
+                    else if length expr2s == 1
+                    then Just $ head expr2s
+                    else Just $ CBinary CLndOp (expr2s !! 0) (expr2s !! 1) undefNode
+        newExpr3 = let
+                    expr3s = catMaybes [expr3, expr3']
+                   in
+                    if length expr3s == 0
+                    then Nothing
+                    else if length expr3s == 1
+                    then Just $ head expr3s
+                    else Just $ CComma expr3s undefNode
+        newStmt = flattenStmt $ prodStmts stmt stmt'
+        for0 = CFor newInit newExpr2 newExpr3 newStmt undefNode
+        for1 = CFor (Left Nothing) expr2 expr3 stmt undefNode
+        for2 = CFor (Left Nothing) expr2' expr3' stmt' undefNode
+        fors = CBlockStmt <$> [for0, for1, for2]
+    in [CCompound [] (preDecls ++ fors) undefNode]
 prodStmts s1 s2 = [s1, s2]
 
 flattenStmt :: [CStat] -> CStat
@@ -87,8 +137,9 @@ isBlockAtom (CBlockStmt stmt) = isAtom stmt
 
 isAtom :: CStat -> Bool
 isAtom (CIf _ _ _ _) = False
-isAtom (CWhile _ _ _ _) = True
-isAtom (CCompound _ _ _) = True
+isAtom (CWhile _ _ _ _) = False
+isAtom (CFor _ _ _ _ _) = False
+isAtom (CCompound _ _ _) = False
 isAtom _ = True
 
 compatibilityCheck :: FunDef -> FunDef -> Bool
