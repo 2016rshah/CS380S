@@ -4,7 +4,8 @@ identOfDecl, identOfExpr,
 resultOrDie, runTravOrDie, runTravOrDie_,
 getFunDef, emptyFunDef, appendToId,
 getReturnType, getFnParams,
-filterBuiltIns, isMain
+filterBuiltIns, isMain,
+strToIdent
 )
 where
 import Language.C.Syntax.AST
@@ -107,3 +108,4 @@ isMain (CDeclr maybeId _ _ _ _) = maybe False isMainId maybeId
     where
         isMainId ident = identToString ident == "main"
 
+strToIdent s = mkIdent nopos s (Name 0)

@@ -28,7 +28,9 @@ main = do
         parseResult2 <- parseCFile (newGCC "gcc") Nothing [] fp2
         let parsed1 = resultOrDie parseResult1
             parsed2 = resultOrDie parseResult2
-            instrumentedAst1 = instrumentation parsed1
-            instrumentedAst2 = instrumentation parsed2
+            (instrumentedAst1, taintEnv1) = instrumentation parsed1
+            (instrumentedAst2, _) = instrumentation parsed2
         pp <- productProgram "main1" instrumentedAst1 instrumentedAst2
         print $ pretty pp
+        -- print parseResult1
+        print $ taintEnv1

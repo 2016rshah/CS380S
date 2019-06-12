@@ -10,6 +10,7 @@ import DependencyFunction
 import InstrumentationState (emptyInstState)
 import InstrumentationTrav
 import TaintMap
+import TaintEnv
 
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
@@ -31,11 +32,12 @@ import Language.C.Pretty
 import qualified Data.Map as Map
 import Data.Maybe 
 import Control.Monad
+import Control.Arrow
 
-instrumentation :: CTranslUnit -> CTranslUnit
+instrumentation :: CTranslUnit -> (CTranslUnit, TaintEnv)
 instrumentation ast = runTravOrDie_ emptyInstState $ instrumentationTraversal ast
 
-instrumentationTraversal :: CTranslUnit -> InstTrav CTranslUnit
+instrumentationTraversal :: CTranslUnit -> InstTrav (CTranslUnit, TaintEnv)
 instrumentationTraversal (CTranslUnit decls _file_node) = do
     -- instrument all declarations, but recover from errors
     mapRecoverM_ instrumentExt decls
@@ -44,7 +46,9 @@ instrumentationTraversal (CTranslUnit decls _file_node) = do
     -- log $ show $ Map.keys $ gObjs $ globalDefs dTable
     getDefTable >>= (\dt -> unless (inFileScope dt) $ error "Internal Error: Not in filescope after analysis")
     -- get the global definition table and export to an AST
-    export . globalDefs <$> getDefTable
+    ast <- export . globalDefs <$> getDefTable
+    taintEnv <- getTaintEnv
+    return (ast, taintEnv)
     where
     mapRecoverM_ f = mapM_ (handleTravError . f)
 
@@ -55,7 +59,7 @@ instrumentExt (CFDefExt fundef) = if shouldInstrumentFunction fundef
                                   else analyseFunDef fundef
 instrumentExt (CDeclExt decl) = analyseDecl False decl
 
-instrumentedFunctions = ["main", "g"]
+instrumentedFunctions = ["main1", "g"]
 
 shouldInstrumentFunction :: CFunDef -> Bool
 shouldInstrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = 
@@ -78,7 +82,9 @@ instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
     -- callback for declaration
     handleVarDecl False (Decl var_decl node_info)
     -- instrument body
-    stmt' <- instrumentFunctionBody node_info var_decl stmt
+    (stmt', taintTree) <- instrumentFunctionBody node_info var_decl stmt
+    -- record taint environment
+    updateTaintEnv (identToString ident) taintTree
     -- callback for definition
     handleFunDef ident (FunDef var_decl stmt' node_info)
     return $ CFunDef declspecs declr oldstyle_decls stmt' node_info
@@ -106,7 +112,7 @@ instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
                         $ "unexpected function storage specifier (only static or extern is allowed)" ++ show bad_spec
 
 
-instrumentFunctionBody :: NodeInfo -> VarDecl -> CStat -> InstTrav Stmt
+instrumentFunctionBody :: NodeInfo -> VarDecl -> CStat -> InstTrav (CStat, TaintTree)
 instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_body) =
     do 
         enterFunctionScope
@@ -114,19 +120,26 @@ instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_b
         defineParams node_info decl
         -- record parameters
         -- log items
-        items' <- mapM (instrumentBlockItem [FunCtx decl]) items
+        (items', taintTrees) <- unzip <$> mapM (instrumentBlockItem [FunCtx decl]) items
+        let newBody = CCompound localLabels items' node_info_body
+            combinedTaintVal = or (map getTaintVal taintTrees)
+            taintTree = CompoundTaint combinedTaintVal taintTrees
         leaveFunctionScope
-        return $ CCompound localLabels items' node_info_body
+        return (newBody, taintTree)
 instrumentFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
 
-instrumentBlockItem :: [StmtCtx] -> CBlockItem -> InstTrav CBlockItem
-instrumentBlockItem _ (CBlockDecl d) = CBlockDecl <$> instrumentDecl True d 
-instrumentBlockItem _ (CNestedFunDef fundef) = 
-    CNestedFunDef <$> 
-        if shouldInstrumentFunction fundef 
-        then instrumentFunction fundef
-        else analyseFunDef fundef >> return fundef
-instrumentBlockItem c (CBlockStmt s) = CBlockStmt <$> instrumentStmt c s 
+instrumentBlockItem :: [StmtCtx] -> CBlockItem -> InstTrav (CBlockItem, TaintTree)
+instrumentBlockItem _ (CBlockDecl d) = do
+    decl <- instrumentDecl True d
+    return (CBlockDecl decl, EmptyTaintTree)
+instrumentBlockItem _ (CNestedFunDef fundef) = do
+    fundef <- if shouldInstrumentFunction fundef 
+              then instrumentFunction fundef
+              else analyseFunDef fundef >> return fundef
+    return (CNestedFunDef fundef, EmptyTaintTree)
+instrumentBlockItem c (CBlockStmt s) = do
+    stmt <- instrumentStmt c s 
+    return (CBlockStmt stmt, EmptyTaintTree)
 
 instrumentStmt :: [StmtCtx] -> CStat -> InstTrav CStat
 instrumentStmt c s@(CExpr expr node) =
@@ -136,7 +149,7 @@ instrumentStmt c s@(CExpr expr node) =
             expr' <- instrumentExpr c RValue e
             return $ CExpr (Just expr') node
 instrumentStmt c (CCompound localLabels blocks node) = do
-    blocks' <- mapM (instrumentBlockItem []) blocks
+    (blocks', taintTrees) <- unzip <$> mapM (instrumentBlockItem []) blocks
     return $ CCompound localLabels blocks' node
 instrumentStmt c (CWhile guard body isDoWhile node) = do
     guard' <- instrumentExpr c RValue guard
@@ -279,7 +292,6 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
         decl' <- instrumentDecl' decl
         analyseDecl is_local decl'
         return decl'
-
     where
     instrumentDecl' :: CDecl -> InstTrav CDecl
     instrumentDecl' decl@(CDecl declspecs [(Just declr, init, _x)] node) = do

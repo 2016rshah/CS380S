@@ -83,7 +83,11 @@ remapIdent version id =
 
 remapFun :: ProgramVersion -> CFunDef -> CFunDef
 remapFun version (CFunDef declspecs declr oldstyle_decls stmt node_info) =
-    let declr' = if isMain declr then declr else remapDeclr version declr
+    let declr' = let
+                    newDeclr@(CDeclr maybeId derivedDeclrs maybeStrLit attrs node) = remapDeclr version declr
+                 in if isMain declr 
+                    then (CDeclr (Just (strToIdent "main")) derivedDeclrs maybeStrLit attrs node)
+                    else newDeclr
         stmt' = remapStmt version stmt
     in CFunDef declspecs declr' oldstyle_decls stmt' node_info
 

@@ -5,7 +5,8 @@ InstTrav,
 addPreservingFn, addNonPreservingFn,
 getPreservingFns, getNonPreservingFns,
 addToTaints, updateTaint, getTaintValue, getTaintMap, setTaintMap, withTaintMap,
-enterBlockScope, leaveBlockScope, enterFunctionScope, leaveFunctionScope
+getTaintEnv, updateTaintEnv,
+enterBlockScope, leaveBlockScope, enterFunctionScope, leaveFunctionScope,
 )
 where
 import Prelude hiding (log)
@@ -13,6 +14,7 @@ import Prelude hiding (log)
 import EntropicDependency
 import InstrumentationState
 import TaintMap
+import TaintEnv
 import Loggable
 
 import Language.C.Syntax.AST
@@ -66,6 +68,12 @@ setTaintMap tm = modifyUserState (\st -> st { taints = tm })
 
 withTaintMap :: (TaintMap -> TaintMap) -> InstTrav ()
 withTaintMap f = getTaintMap >>= setTaintMap . f
+
+getTaintEnv :: InstTrav TaintEnv 
+getTaintEnv = taintEnv <$> getUserState
+
+updateTaintEnv :: String -> TaintTree -> InstTrav ()
+updateTaintEnv fnName tTree = modifyUserState (\st -> st { taintEnv = Map.insert fnName tTree (taintEnv st) })
 
 -- scope manipulation
 
