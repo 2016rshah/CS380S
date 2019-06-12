@@ -57,7 +57,7 @@ prodProg fnName p1 p2
             retType = getReturnType p1
             varName = VarName (mkIdent nopos (fnName ++ versionSuffix SecondVersion) (Name 0)) Nothing
             declAttrs = declAttrs1
-            fType = FunType retType params1 (isVar1 || isVar2)
+            fType = FunType retType params2 (isVar1 || isVar2)
             funType = FunctionType fType noAttributes -- TODO: place in attributes from p1 or p2
             varDecl = VarDecl varName declAttrs funType
             (CCompound localLabels bodyItems node) = head $ prodStmts body1 body2
@@ -70,11 +70,11 @@ prodProg fnName p1 p2
 makeParamDecls :: [ParamDecl] -> [ParamDecl] -> [CDecl]
 makeParamDecls = zipWith f
     where 
-        f pd1 pd2@(ParamDecl (VarDecl vName (DeclAttrs _ _ attrs) ty) node) = 
+        f pd1@(ParamDecl (VarDecl vName (DeclAttrs _ _ attrs) ty) node) pd2 = 
             let id1 = declIdent pd1
                 id2 = declIdent pd2
                 (declspecs, declr) = exportDeclr [] ty attrs vName
-                initExpr = CVar id1 undefNode
+                initExpr = CVar id2 undefNode
                 init = CInitExpr initExpr undefNode
             in CDecl declspecs [(Just declr, Just init, Nothing)] undefNode
         f _ _ = error "Abstract parameters in producted function"
