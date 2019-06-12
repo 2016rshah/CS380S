@@ -4,7 +4,8 @@ identOfDecl, identOfExpr,
 resultOrDie, runTravOrDie, runTravOrDie_,
 getFunDef, emptyFunDef, appendToId,
 getReturnType, getFnParams,
-filterBuiltIns, isMain
+filterBuiltIns, isMain,
+strToIdent,
 )
 where
 import Language.C.Syntax.AST
@@ -20,6 +21,7 @@ import Language.C.Analysis.SemRep
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Maybe
+
 
 makeStrConst :: String -> CExpr -> CExpr
 makeStrConst strConst expr = let node_info = nodeInfo expr 
@@ -106,4 +108,7 @@ isMain :: CDeclr -> Bool
 isMain (CDeclr maybeId _ _ _ _) = maybe False isMainId maybeId
     where
         isMainId ident = identToString ident == "main"
+
+strToIdent s = mkIdent nopos s (Name 0)
+
 

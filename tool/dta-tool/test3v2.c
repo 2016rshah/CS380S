@@ -1,4 +1,8 @@
 int main(int argc, char** argv) {
+    return main1(argc, argv);
+}
+
+int main1(int test, char** test_c) {
     char** foo;
     char* bar;
     int k = 0;

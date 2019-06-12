@@ -55,13 +55,29 @@ prodProg fnName p1 p2
             (params1, isVar1) = getFnParams p1
             (params2, isVar2) = getFnParams p2
             retType = getReturnType p1
-            varName = VarName (mkIdent nopos fnName (Name 0)) Nothing
+            varName = VarName (mkIdent nopos (fnName ++ versionSuffix SecondVersion) (Name 0)) Nothing
             declAttrs = declAttrs1
-            fType = FunType retType (params1 ++ params2) (isVar1 || isVar2)
+            fType = FunType retType params2 (isVar1 || isVar2)
             funType = FunctionType fType noAttributes -- TODO: place in attributes from p1 or p2
             varDecl = VarDecl varName declAttrs funType
-            body = head $ prodStmts body1 body2
+            (CCompound localLabels bodyItems node) = head $ prodStmts body1 body2
+            paramDecls = CBlockDecl <$> makeParamDecls params1 params2
+            body = CCompound localLabels (paramDecls ++ bodyItems) node
         in FunDef varDecl body node1
+
+-- this function initializes the parameters of the second version of the
+-- productized program to be the parameters of the first version
+makeParamDecls :: [ParamDecl] -> [ParamDecl] -> [CDecl]
+makeParamDecls = zipWith f
+    where 
+        f pd1@(ParamDecl (VarDecl vName (DeclAttrs _ _ attrs) ty) node) pd2 = 
+            let id1 = declIdent pd1
+                id2 = declIdent pd2
+                (declspecs, declr) = exportDeclr [] ty attrs vName
+                initExpr = CVar id2 undefNode
+                init = CInitExpr initExpr undefNode
+            in CDecl declspecs [(Just declr, Just init, Nothing)] undefNode
+        f _ _ = error "Abstract parameters in producted function"
 
 prodBlocks :: [CBlockItem] -> [CBlockItem] -> [CBlockItem]
 prodBlocks bs1 [] = bs1

@@ -1,6 +1,7 @@
 module InstrumentationState(
 InstrumentationState, 
     taints,
+    taintEnv,
     preservingFns,
     nonPreservingFns,
 addToLog, addPrettyToLog,
@@ -9,6 +10,7 @@ emptyInstState
 where
 import EntropicDependency
 import TaintMap
+import TaintEnv
 
 import Language.C.Data.Position
 import Language.C.Data.Node
@@ -24,13 +26,15 @@ data InstrumentationState = IState
     { 
         notes :: String, 
         taints :: TaintMap,
+        taintEnv :: TaintEnv,
         preservingFns :: [Decl],
         nonPreservingFns :: [Decl]
     }
 
 instance Show InstrumentationState where
     show is = "Log: " ++ notes is ++ "\n\n" ++
-                "Taint values: " ++ show (Map.mapKeys (show . pretty) (globalTaints (taints is))) 
+                "Taint values: " ++ show (Map.mapKeys (show . pretty) (globalTaints (taints is))) ++
+                "Taint tree: " ++ show (taintEnv is)
 
 addPrettyToLog :: (Pretty a) => a -> InstrumentationState -> InstrumentationState
 addPrettyToLog o is = let lg = notes is ++ show (pretty o)  ++ "\n" in is { notes = lg }
@@ -42,6 +46,7 @@ emptyInstState :: InstrumentationState
 emptyInstState = IState { 
                     notes = "", 
                     taints = emptyTaintMap,
+                    taintEnv = emptyTaintEnv,
                     preservingFns = [],
                     nonPreservingFns = []
                     }

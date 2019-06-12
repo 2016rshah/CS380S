@@ -10,6 +10,7 @@ import DependencyFunction
 import InstrumentationState (emptyInstState)
 import InstrumentationTrav
 import TaintMap
+import TaintEnv
 
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
@@ -31,11 +32,12 @@ import Language.C.Pretty
 import qualified Data.Map as Map
 import Data.Maybe 
 import Control.Monad
+import Control.Arrow
 
-instrumentation :: CTranslUnit -> CTranslUnit
+instrumentation :: CTranslUnit -> (CTranslUnit, TaintEnv)
 instrumentation ast = runTravOrDie_ emptyInstState $ instrumentationTraversal ast
 
-instrumentationTraversal :: CTranslUnit -> InstTrav CTranslUnit
+instrumentationTraversal :: CTranslUnit -> InstTrav (CTranslUnit, TaintEnv)
 instrumentationTraversal (CTranslUnit decls _file_node) = do
     -- instrument all declarations, but recover from errors
     mapRecoverM_ instrumentExt decls
@@ -44,7 +46,9 @@ instrumentationTraversal (CTranslUnit decls _file_node) = do
     -- log $ show $ Map.keys $ gObjs $ globalDefs dTable
     getDefTable >>= (\dt -> unless (inFileScope dt) $ error "Internal Error: Not in filescope after analysis")
     -- get the global definition table and export to an AST
-    export . globalDefs <$> getDefTable
+    ast <- export . globalDefs <$> getDefTable
+    taintEnv <- getTaintEnv
+    return (ast, taintEnv)
     where
     mapRecoverM_ f = mapM_ (handleTravError . f)
 
@@ -55,7 +59,7 @@ instrumentExt (CFDefExt fundef) = if shouldInstrumentFunction fundef
                                   else analyseFunDef fundef
 instrumentExt (CDeclExt decl) = analyseDecl False decl
 
-instrumentedFunctions = ["main", "g"]
+instrumentedFunctions = ["main1", "g"]
 
 shouldInstrumentFunction :: CFunDef -> Bool
 shouldInstrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = 
@@ -106,26 +110,25 @@ instrumentFunction (CFunDef declspecs declr oldstyle_decls stmt node_info) = do
                         $ "unexpected function storage specifier (only static or extern is allowed)" ++ show bad_spec
 
 
-instrumentFunctionBody :: NodeInfo -> VarDecl -> CStat -> InstTrav Stmt
+instrumentFunctionBody :: NodeInfo -> VarDecl -> CStat -> InstTrav CStat
 instrumentFunctionBody node_info decl s@(CCompound localLabels items node_info_body) =
     do 
         enterFunctionScope
         mapM_ (withDefTable . defineLabel) (localLabels ++ getLabels s)
         defineParams node_info decl
         -- record parameters
-        -- log items
         items' <- mapM (instrumentBlockItem [FunCtx decl]) items
         leaveFunctionScope
         return $ CCompound localLabels items' node_info_body
 instrumentFunctionBody _ _ s = astError (nodeInfo s) "Function body is no compound statement"
 
 instrumentBlockItem :: [StmtCtx] -> CBlockItem -> InstTrav CBlockItem
-instrumentBlockItem _ (CBlockDecl d) = CBlockDecl <$> instrumentDecl True d 
-instrumentBlockItem _ (CNestedFunDef fundef) = 
-    CNestedFunDef <$> 
-        if shouldInstrumentFunction fundef 
-        then instrumentFunction fundef
-        else analyseFunDef fundef >> return fundef
+instrumentBlockItem _ (CBlockDecl d) = CBlockDecl <$> instrumentDecl True d
+instrumentBlockItem _ (CNestedFunDef fundef) = do
+    fundef <- if shouldInstrumentFunction fundef 
+              then instrumentFunction fundef
+              else analyseFunDef fundef >> return fundef
+    return $ CNestedFunDef fundef
 instrumentBlockItem c (CBlockStmt s) = CBlockStmt <$> instrumentStmt c s 
 
 instrumentStmt :: [StmtCtx] -> CStat -> InstTrav CStat
@@ -279,7 +282,6 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
         decl' <- instrumentDecl' decl
         analyseDecl is_local decl'
         return decl'
-
     where
     instrumentDecl' :: CDecl -> InstTrav CDecl
     instrumentDecl' decl@(CDecl declspecs [(Just declr, init, _x)] node) = do
@@ -296,11 +298,12 @@ instrumentDecl is_local decl@(CDecl declspecs declrs node)
                     (dep, expr') <- processRhs [] CAssignOp returnType expr
                     let init' = CInitExpr expr' node_info
                     addToTaints id dep
-                    return $ CDecl declspecs [(Just declr, Just init', _x)] node
+                    let decl' = CDecl declspecs [(Just declr, Just init', _x)] node
+                    return decl'
     instrumentDecl' decl@CDecl{} = return decl
     instrumentDecl' CStaticAssert{} = error "Tried to instrument a static assertion"
 
-annotatedSources = ["foo", "baz"]--["foo", "bar"]
+annotatedSources = ["foo", "baz"]
 -- the type of sources is char*
 sourceType = PtrType (DirectType (TyIntegral TyChar) noTypeQuals noAttributes) noTypeQuals noAttributes
 
