@@ -55,7 +55,7 @@ prodProg fnName p1 p2
             (params1, isVar1) = getFnParams p1
             (params2, isVar2) = getFnParams p2
             retType = getReturnType p1
-            varName = VarName (mkIdent nopos fnName (Name 0)) Nothing
+            varName = VarName (mkIdent nopos (fnName ++ versionSuffix SecondVersion) (Name 0)) Nothing
             declAttrs = declAttrs1
             fType = FunType retType params1 (isVar1 || isVar2)
             funType = FunctionType fType noAttributes -- TODO: place in attributes from p1 or p2
@@ -65,6 +65,8 @@ prodProg fnName p1 p2
             body = CCompound localLabels (paramDecls ++ bodyItems) node
         in FunDef varDecl body node1
 
+-- this function initializes the parameters of the second version of the
+-- productized program to be the parameters of the first version
 makeParamDecls :: [ParamDecl] -> [ParamDecl] -> [CDecl]
 makeParamDecls = zipWith f
     where 
